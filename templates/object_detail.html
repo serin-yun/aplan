@@ -1,0 +1,505 @@
+{% extends "base.html" %}
+
+{% block title %}{{ object.name }} - APlan Integration Impact Map{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- 좌측 패널: 기본 정보 -->
+    <div class="col-md-4">
+        <div class="object-detail-panel">
+            <h3>{{ object.name }}</h3>
+            <hr>
+            
+            <div class="info-row">
+                <div class="info-label">object_key</div>
+                <div><code>{{ object.object_key }}</code></div>
+            </div>
+            
+            <div class="info-row">
+                <div class="info-label">system_type</div>
+                <div><span class="badge bg-secondary">{{ object.system_type }}</span></div>
+            </div>
+            
+            <div class="info-row">
+                <div class="info-label">object_type</div>
+                <div><span class="badge bg-info">{{ object.object_type }}</span></div>
+            </div>
+            
+            <div class="info-row">
+                <div class="info-label">layer</div>
+                <div>{{ object.layer }}</div>
+            </div>
+            
+            <div class="info-row">
+                <div class="info-label">module</div>
+                <div>{{ object.module or '-' }}</div>
+            </div>
+            
+            <div class="info-row">
+                <div class="info-label">owner_team</div>
+                <div>{{ object.owner_team or '-' }}</div>
+            </div>
+            
+            <div class="info-row">
+                <div class="info-label">status</div>
+                <div>
+                    {% if object.status == 'ACTIVE' %}
+                        <span class="badge bg-success">ACTIVE</span>
+                    {% elif object.status == 'DRAFT' %}
+                        <span class="badge bg-warning">DRAFT</span>
+                    {% else %}
+                        <span class="badge bg-danger">DEPRECATED</span>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="info-row">
+                <div class="info-label">environment</div>
+                <div><span class="badge bg-primary">{{ object.environment }}</span></div>
+            </div>
+            
+            {% if object.tags %}
+            <div class="info-row">
+                <div class="info-label">tags</div>
+                <div>
+                    {% for tag in object.tags.split(',') %}
+                        <span class="badge bg-light text-dark">{{ tag.strip() }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            
+            {% if object.description %}
+            <div class="info-row">
+                <div class="info-label">description</div>
+                <div>{{ object.description }}</div>
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="mt-3">
+            <a href="/objects" class="btn btn-secondary">← 검색으로 돌아가기</a>
+            <a href="/objects/overview" class="btn btn-outline-primary ms-2">전체 맵 보기</a>
+        </div>
+    </div>
+    
+    <!-- 우측 패널: 영향도 정보 및 다이어그램 -->
+    <div class="col-md-8">
+        <!-- 영향도 리스트 -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">영향도 분석</h5>
+            </div>
+            <div class="card-body">
+                <!-- Upstream -->
+                <h6>Upstream (상위 오브젝트)</h6>
+                {% if upstream %}
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover">
+                        <thead>
+                            <tr>
+                                <th>object_key</th>
+                                <th>name</th>
+                                <th>system_type</th>
+                                <th>object_type</th>
+                                <th>layer</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for obj in upstream %}
+                            <tr style="cursor: pointer;" onclick="window.location.href='/objects/{{ obj.id }}'">
+                                <td><code>{{ obj.object_key }}</code></td>
+                                <td>{{ obj.name }}</td>
+                                <td><span class="badge bg-secondary">{{ obj.system_type }}</span></td>
+                                <td><span class="badge bg-info">{{ obj.object_type }}</span></td>
+                                <td>{{ obj.layer }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">Upstream 오브젝트가 없습니다.</p>
+                {% endif %}
+                
+                <!-- Downstream -->
+                <h6 class="mt-4">Downstream (하위 오브젝트)</h6>
+                {% if downstream %}
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover">
+                        <thead>
+                            <tr>
+                                <th>object_key</th>
+                                <th>name</th>
+                                <th>system_type</th>
+                                <th>object_type</th>
+                                <th>layer</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for obj in downstream %}
+                            <tr style="cursor: pointer;" onclick="window.location.href='/objects/{{ obj.id }}'">
+                                <td><code>{{ obj.object_key }}</code></td>
+                                <td>{{ obj.name }}</td>
+                                <td><span class="badge bg-secondary">{{ obj.system_type }}</span></td>
+                                <td><span class="badge bg-info">{{ obj.object_type }}</span></td>
+                                <td>{{ obj.layer }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">Downstream 오브젝트가 없습니다.</p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- 영향도 다이어그램 (탭) -->
+        <div class="card">
+            <div class="card-header">
+                <ul class="nav nav-tabs card-header-tabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="interactive-tab" data-bs-toggle="tab" 
+                                data-bs-target="#interactive-panel" type="button" role="tab">
+                            인터랙티브 그래프
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="mermaid-tab" data-bs-toggle="tab" 
+                                data-bs-target="#mermaid-panel" type="button" role="tab">
+                            Mermaid 다이어그램
+                        </button>
+                    </li>
+                </ul>
+            </div>
+            <div class="card-body">
+                <div class="tab-content">
+                    <!-- 인터랙티브 그래프 패널 -->
+                    <div class="tab-pane fade show active" id="interactive-panel" role="tabpanel">
+                        <div class="mb-3">
+                            <label for="depth-select" class="form-label">탐색 깊이</label>
+                            <select class="form-select" id="depth-select" onchange="loadNetwork()" style="width: auto; display: inline-block;">
+                                <option value="1">1단계 (직접 연결만)</option>
+                                <option value="2" selected>2단계 (한 단계 이웃까지)</option>
+                            </select>
+                            <button class="btn btn-sm btn-outline-info ms-2" onclick="fitNetwork()">전체 보기</button>
+                            <button class="btn btn-sm btn-outline-secondary ms-2" onclick="togglePhysics()">물리 엔진 토글</button>
+                        </div>
+                        <div id="network-container" style="min-height: 500px;"></div>
+                        <div class="network-info mt-3">
+                            <strong>사용 방법:</strong>
+                            <ul class="mb-0">
+                                <li>노드를 드래그하여 이동할 수 있습니다</li>
+                                <li>마우스 휠로 확대/축소할 수 있습니다</li>
+                                <li>노드를 클릭하면 해당 오브젝트 상세로 이동합니다</li>
+                                <li>중심 오브젝트(노란색)는 현재 선택된 오브젝트입니다</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <!-- Mermaid 다이어그램 패널 -->
+                    <div class="tab-pane fade" id="mermaid-panel" role="tabpanel">
+                        <!-- Mermaid 코드 복사 영역 -->
+                        <div class="mb-3">
+                            <label for="mermaid_code" class="form-label">Mermaid 코드 (복사용)</label>
+                            <textarea id="mermaid_code" class="form-control mermaid-code-area" rows="5" readonly>{{ mermaid_code }}</textarea>
+                            <button class="btn btn-sm btn-outline-primary mt-2" onclick="copyMermaidCode()">Copy Mermaid Code</button>
+                        </div>
+                        
+                        <!-- 실제 다이어그램 -->
+                        <div class="mermaid">
+{{ mermaid_code }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let network = null;
+let nodes = null;
+let edges = null;
+let physicsEnabled = true;
+const objectId = {{ object.id }};
+
+// 네트워크 로드
+async function loadNetwork() {
+    const depth = document.getElementById('depth-select').value;
+    
+    try {
+        const response = await fetch(`/objects/${objectId}/network?depth=${depth}`);
+        const data = await response.json();
+        
+        // vis.js 데이터셋 생성
+        if (!nodes) {
+            nodes = new vis.DataSet(data.nodes);
+            edges = new vis.DataSet(data.edges);
+        } else {
+            nodes.clear();
+            edges.clear();
+            nodes.add(data.nodes);
+            edges.add(data.edges);
+        }
+        
+        // 네트워크 옵션
+        const options = {
+            nodes: {
+                shape: 'box',
+                font: {
+                    size: 16,
+                    color: '#212121',  // 파스텔 톤에 맞게 어두운 텍스트
+                    face: 'Arial',
+                    bold: true
+                },
+                borderWidth: 3,
+                borderWidthSelected: 5,
+                shadow: true,
+                margin: 12,
+                size: function(node) {
+                    // 노드 데이터에 size가 있으면 사용, 없으면 연결도 기반 계산
+                    if (node.size) return node.size;
+                    const degree = node.degree || 0;
+                    return Math.max(30, Math.min(60, 30 + degree * 3));
+                },
+                chosen: {
+                    node: function(values, id, selected, hovering) {
+                        if (selected || hovering) {
+                            values.borderWidth = 5;
+                            values.shadow = true;
+                        }
+                    }
+                }
+            },
+            edges: {
+                arrows: {
+                    to: {
+                        enabled: true,
+                        scaleFactor: 1.3
+                    }
+                },
+                smooth: {
+                    type: 'continuous',
+                    roundness: 0.5
+                },
+                width: function(edge) {
+                    return edge.width || 2;
+                },
+                color: function(edge) {
+                    return edge.color || {color: '#848484', highlight: '#ff0000'};
+                },
+                chosen: {
+                    edge: function(values, id, selected, hovering) {
+                        if (selected || hovering) {
+                            values.width = 4;
+                        }
+                    }
+                }
+            },
+            physics: {
+                enabled: physicsEnabled,
+                stabilization: {
+                    iterations: 200
+                },
+                barnesHut: {
+                    gravitationalConstant: -2000,
+                    centralGravity: 0.3,
+                    springLength: 150,
+                    springConstant: 0.03,
+                    damping: 0.09
+                }
+            },
+            interaction: {
+                dragNodes: true,
+                dragView: true,
+                zoomView: true,
+                hover: true,
+                tooltipDelay: 100,
+                selectConnectedEdges: true
+            },
+            layout: {
+                improvedLayout: true,
+                hierarchical: {
+                    enabled: false
+                }
+            }
+        };
+        
+        // 네트워크 생성 또는 업데이트
+        const container = document.getElementById('network-container');
+        const networkData = { nodes: nodes, edges: edges };
+        
+        if (!network) {
+            network = new vis.Network(container, networkData, options);
+            
+            // 이벤트 리스너
+            network.on('click', function(params) {
+                if (params.nodes.length > 0) {
+                    const nodeId = params.nodes[0];
+                    if (nodeId !== objectId) {
+                        window.location.href = '/objects/' + nodeId;
+                    }
+                }
+            });
+            
+            network.on('doubleClick', function(params) {
+                if (params.nodes.length > 0) {
+                    const nodeId = params.nodes[0];
+                    network.focus(nodeId, {
+                        scale: 1.5,
+                        animation: true
+                    });
+                }
+            });
+            
+            // 호버 시 상세 정보 표시
+            network.on('hoverNode', function(params) {
+                const nodeId = params.node;
+                const node = nodes.get(nodeId);
+                if (node && node.title) {
+                    container.style.cursor = 'pointer';
+                }
+            });
+            
+            network.on('blurNode', function(params) {
+                container.style.cursor = 'default';
+            });
+            
+            // 선택 노드 강조
+            network.on('selectNode', function(params) {
+                if (params.nodes.length > 0) {
+                    const selectedNodeId = params.nodes[0];
+                    const connectedNodeIds = new Set([selectedNodeId]);
+                    
+                    // 선택된 노드와 연결된 노드 찾기
+                    edges.forEach(function(edge) {
+                        if (edge.from === selectedNodeId) {
+                            connectedNodeIds.add(edge.to);
+                        }
+                        if (edge.to === selectedNodeId) {
+                            connectedNodeIds.add(edge.from);
+                        }
+                    });
+                    
+                    // 연결되지 않은 노드는 반투명 처리
+                    const updateArray = nodes.map(function(node) {
+                        if (connectedNodeIds.has(node.id)) {
+                            return {
+                                id: node.id,
+                                opacity: 1
+                            };
+                        } else {
+                            return {
+                                id: node.id,
+                                opacity: 0.2
+                            };
+                        }
+                    });
+                    nodes.update(updateArray);
+                    
+                    // 연결되지 않은 엣지는 반투명 처리
+                    const edgeUpdateArray = edges.map(function(edge) {
+                        const isConnected = connectedNodeIds.has(edge.from) && connectedNodeIds.has(edge.to);
+                        return {
+                            id: edge.id,
+                            opacity: isConnected ? 1 : 0.1
+                        };
+                    });
+                    edges.update(edgeUpdateArray);
+                }
+            });
+            
+            network.on('deselectNode', function(params) {
+                // 선택 해제 시 모든 노드와 엣지를 다시 표시
+                const nodeUpdateArray = nodes.map(function(node) {
+                    return {id: node.id, opacity: 1};
+                });
+                nodes.update(nodeUpdateArray);
+                
+                const edgeUpdateArray = edges.map(function(edge) {
+                    return {id: edge.id, opacity: 1};
+                });
+                edges.update(edgeUpdateArray);
+            });
+            
+            network.on('stabilizationEnd', function() {
+                // 중심 오브젝트로 포커스
+                network.focus(objectId, {
+                    scale: 1.2,
+                    animation: true
+                });
+            });
+        } else {
+            network.setData(networkData);
+        }
+        
+    } catch (error) {
+        console.error('네트워크 로드 오류:', error);
+        document.getElementById('network-container').innerHTML = 
+            '<div class="alert alert-danger">데이터를 불러오는 중 오류가 발생했습니다.</div>';
+    }
+}
+
+// 전체 보기
+function fitNetwork() {
+    if (network) {
+        network.fit({
+            animation: true
+        });
+    }
+}
+
+// 물리 엔진 토글
+function togglePhysics() {
+    physicsEnabled = !physicsEnabled;
+    if (network) {
+        network.setOptions({
+            physics: {
+                enabled: physicsEnabled
+            }
+        });
+    }
+}
+
+// Mermaid 코드 복사
+function copyMermaidCode() {
+    const textarea = document.getElementById('mermaid_code');
+    textarea.select();
+    document.execCommand('copy');
+    
+    // 피드백 표시
+    const btn = event.target;
+    const originalText = btn.textContent;
+    btn.textContent = 'Copied!';
+    btn.classList.add('btn-success');
+    btn.classList.remove('btn-outline-primary');
+    
+    setTimeout(() => {
+        btn.textContent = originalText;
+        btn.classList.remove('btn-success');
+        btn.classList.add('btn-outline-primary');
+    }, 2000);
+}
+
+// 페이지 로드 시 네트워크 초기화
+document.addEventListener('DOMContentLoaded', function() {
+    // 인터랙티브 탭이 활성화될 때 네트워크 로드
+    const interactiveTab = document.getElementById('interactive-tab');
+    interactiveTab.addEventListener('shown.bs.tab', function() {
+        if (!network) {
+            loadNetwork();
+        }
+    });
+    
+    // 처음 로드 시 인터랙티브 탭이 활성화되어 있으면 네트워크 로드
+    if (interactiveTab.classList.contains('active')) {
+        loadNetwork();
+    }
+});
+</script>
+{% endblock %}
+

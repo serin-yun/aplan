@@ -1,0 +1,744 @@
+{% extends "base.html" %}
+
+{% block title %}전체 시스템 맵 - APlan Integration Impact Map{% endblock %}
+
+{% block extra_css %}
+<style>
+    .network-controls {
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 5px;
+        margin-bottom: 15px;
+    }
+    .filter-group {
+        margin-bottom: 10px;
+    }
+    .network-info {
+        margin-top: 15px;
+        padding: 10px;
+        background-color: #e9ecef;
+        border-radius: 5px;
+        font-size: 14px;
+    }
+    .loading-spinner {
+        text-align: center;
+        padding: 50px;
+    }
+    #network-container {
+        min-height: 600px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>전체 시스템 맵 (인터랙티브)</h2>
+            <div>
+                <a href="/objects" class="btn btn-secondary me-2">← 검색으로 돌아가기</a>
+                <button class="btn btn-outline-primary" onclick="resetView()">뷰 리셋</button>
+            </div>
+        </div>
+        
+        <!-- 필터 컨트롤 -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">필터</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label for="filter-system-type" class="form-label">시스템 타입</label>
+                        <select class="form-select" id="filter-system-type" onchange="applyFilters()">
+                            <option value="">전체</option>
+                            <option value="SAP">SAP</option>
+                            <option value="APLAN">APLAN</option>
+                            <option value="BW">BW</option>
+                            <option value="BI">BI</option>
+                            <option value="EAI">EAI</option>
+                            <option value="IAM">IAM</option>
+                            <option value="NPD">NPD</option>
+                            <option value="CDP">CDP</option>
+                            <option value="LEGACY">LEGACY</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="filter-layer" class="form-label">레이어</label>
+                        <select class="form-select" id="filter-layer" onchange="applyFilters()">
+                            <option value="">전체</option>
+                            <option value="Legacy">Legacy</option>
+                            <option value="API">API</option>
+                            <option value="Cust">Cust</option>
+                            <option value="In">In</option>
+                            <option value="Staging">Staging</option>
+                            <option value="Out">Out</option>
+                            <option value="UI">UI</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="filter-module" class="form-label">모듈</label>
+                        <input type="text" class="form-control" id="filter-module" 
+                               placeholder="모듈명 입력" onchange="applyFilters()">
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <button class="btn btn-primary" onclick="applyFilters()">필터 적용</button>
+                        <button class="btn btn-outline-secondary" onclick="clearFilters()">필터 초기화</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 검색 및 하이라이트 -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">검색 및 하이라이트</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-8">
+                        <input type="text" class="form-control" id="search-input" 
+                               placeholder="오브젝트명 또는 object_key로 검색..." 
+                               onkeyup="handleSearch(event)">
+                    </div>
+                    <div class="col-md-4">
+                        <button class="btn btn-primary" onclick="highlightSearch()">하이라이트</button>
+                        <button class="btn btn-outline-secondary" onclick="clearHighlight()">하이라이트 제거</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 통계 정보 -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row" id="stats-container">
+                    <div class="col-md-12">
+                        <div class="loading-spinner">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">로딩 중...</span>
+                    </div>
+                            <p class="mt-2">데이터를 불러오는 중...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 인터랙티브 그래프 -->
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">전체 시스템 연결 관계</h5>
+                <div>
+                    <button class="btn btn-sm btn-outline-info" onclick="fitNetwork()">전체 보기</button>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="togglePhysics()">물리 엔진 토글</button>
+                    <button class="btn btn-sm btn-outline-primary" onclick="toggleHierarchical()">계층 레이아웃</button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                        <div class="card bg-light">
+                            <div class="card-body py-2">
+                                <h6 class="mb-2">시스템 타입별 색상 범례 (클릭하여 필터링)</h6>
+                                <div class="d-flex flex-wrap gap-2" id="legend-container">
+                                    <!-- 범례가 동적으로 생성됨 -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="network-container"></div>
+                
+                <!-- 네트워크 정보 -->
+                <div class="network-info">
+                    <strong>사용 방법:</strong>
+                    <ul class="mb-0">
+                        <li>노드를 드래그하여 이동할 수 있습니다</li>
+                        <li>마우스 휠로 확대/축소할 수 있습니다</li>
+                        <li>노드를 클릭하면 상세 정보로 이동합니다</li>
+                        <li>노드를 더블클릭하면 해당 노드로 포커스됩니다</li>
+                        <li>검색창에서 오브젝트를 검색하고 하이라이트할 수 있습니다</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let network = null;
+let nodes = null;
+let edges = null;
+let allNodesData = [];
+let allEdgesData = [];
+let physicsEnabled = true;
+
+// 네트워크 초기화
+async function initNetwork() {
+    try {
+        // vis.js가 로드되었는지 확인
+        if (typeof vis === 'undefined') {
+            console.error('vis.js가 로드되지 않았습니다.');
+            document.getElementById('network-container').innerHTML = 
+                '<div class="alert alert-danger">vis.js 라이브러리를 불러올 수 없습니다. 페이지를 새로고침해주세요.</div>';
+            return;
+        }
+        
+        // 컨테이너 확인
+        const container = document.getElementById('network-container');
+        if (!container) {
+            console.error('network-container를 찾을 수 없습니다.');
+            return;
+        }
+        
+        console.log('네트워크 데이터 로딩 시작...');
+        const response = await fetch('/objects/overview/network');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        
+        console.log('데이터 로드 완료:', data);
+        console.log('노드 수:', data.nodes.length, '엣지 수:', data.edges.length);
+        
+        if (!data.nodes || data.nodes.length === 0) {
+            document.getElementById('network-container').innerHTML = 
+                '<div class="alert alert-info">표시할 데이터가 없습니다.</div>';
+            return;
+        }
+        
+        allNodesData = data.nodes;
+        allEdgesData = data.edges;
+        
+        // 통계 정보 업데이트
+        updateStats(data.stats);
+        
+        // 범례 생성
+        createLegend(data.stats.system_types);
+        
+        // vis.js 데이터셋 생성
+        nodes = new vis.DataSet(data.nodes);
+        edges = new vis.DataSet(data.edges);
+        
+        // 네트워크 옵션
+        const options = {
+            nodes: {
+                shape: 'box',
+                font: {
+                    size: 16,
+                    color: '#212121',  // 파스텔 톤에 맞게 어두운 텍스트
+                    face: 'Arial',
+                    bold: true
+                },
+                borderWidth: 3,
+                borderWidthSelected: 5,
+                shadow: true,
+                margin: 12,
+                size: function(node) {
+                    // 노드 데이터에 size가 있으면 사용, 없으면 연결도 기반 계산
+                    if (node.size) return node.size;
+                    const degree = node.degree || 0;
+                    return Math.max(30, Math.min(60, 30 + degree * 3));
+                },
+                chosen: {
+                    node: function(values, id, selected, hovering) {
+                        if (selected || hovering) {
+                            values.borderWidth = 5;
+                            values.shadow = true;
+                        }
+                    }
+                }
+            },
+            edges: {
+                arrows: {
+                    to: {
+                        enabled: true,
+                        scaleFactor: 1.3
+                    }
+                },
+                smooth: {
+                    type: 'continuous',
+                    roundness: 0.5
+                },
+                width: function(edge) {
+                    return edge.width || 2;
+                },
+                color: function(edge) {
+                    return edge.color || {color: '#848484', highlight: '#ff0000'};
+                },
+                chosen: {
+                    edge: function(values, id, selected, hovering) {
+                        if (selected || hovering) {
+                            values.width = 4;
+                        }
+                    }
+                }
+            },
+            physics: {
+                enabled: physicsEnabled,
+                stabilization: {
+                    iterations: 200
+                },
+                barnesHut: {
+                    gravitationalConstant: -2000,
+                    centralGravity: 0.3,
+                    springLength: 150,  // 노드 간 거리 증가
+                    springConstant: 0.03,  // 더 부드럽게
+                    damping: 0.09
+                }
+            },
+            interaction: {
+                dragNodes: true,
+                dragView: true,
+                zoomView: true,
+                hover: true,
+                tooltipDelay: 100,  // 더 빠른 툴팁 표시
+                selectConnectedEdges: true  // 노드 선택 시 연결된 엣지도 선택
+            },
+            layout: {
+                improvedLayout: true,
+                hierarchical: {
+                    enabled: false  // 필요시 true로 변경하여 계층적 레이아웃 사용 가능
+                }
+            }
+        };
+        
+        // 네트워크 생성
+        const networkData = { nodes: nodes, edges: edges };
+        console.log('네트워크 생성 시작...', networkData);
+        network = new vis.Network(container, networkData, options);
+        console.log('네트워크 생성 완료');
+        
+        // 이벤트 리스너
+        network.on('click', function(params) {
+            if (params.nodes.length > 0) {
+                const nodeId = params.nodes[0];
+                window.location.href = '/objects/' + nodeId;
+            }
+        });
+        
+        network.on('doubleClick', function(params) {
+            if (params.nodes.length > 0) {
+                const nodeId = params.nodes[0];
+                network.focus(nodeId, {
+                    scale: 1.5,
+                    animation: true
+                });
+            }
+        });
+        
+        // 호버 시 상세 정보 표시
+        network.on('hoverNode', function(params) {
+            const nodeId = params.node;
+            const node = nodes.get(nodeId);
+            if (node && node.title) {
+                // 커스텀 툴팁 생성 (vis.js의 기본 툴팁 사용)
+                container.style.cursor = 'pointer';
+            }
+        });
+        
+        network.on('blurNode', function(params) {
+            container.style.cursor = 'default';
+        });
+        
+        // 선택 노드 강조
+        network.on('selectNode', function(params) {
+            if (params.nodes.length > 0) {
+                const selectedNodeId = params.nodes[0];
+                const connectedNodeIds = new Set([selectedNodeId]);
+                
+                // 선택된 노드와 연결된 노드 찾기
+                edges.forEach(function(edge) {
+                    if (edge.from === selectedNodeId) {
+                        connectedNodeIds.add(edge.to);
+                    }
+                    if (edge.to === selectedNodeId) {
+                        connectedNodeIds.add(edge.from);
+                    }
+                });
+                
+                // 연결되지 않은 노드는 반투명 처리
+                const updateArray = nodes.map(function(node) {
+                    if (connectedNodeIds.has(node.id)) {
+                        return {
+                            id: node.id,
+                            opacity: 1
+                        };
+                    } else {
+                        return {
+                            id: node.id,
+                            opacity: 0.2
+                        };
+                    }
+                });
+                nodes.update(updateArray);
+                
+                // 연결되지 않은 엣지는 반투명 처리
+                const edgeUpdateArray = edges.map(function(edge) {
+                    const isConnected = connectedNodeIds.has(edge.from) && connectedNodeIds.has(edge.to);
+                    return {
+                        id: edge.id,
+                        opacity: isConnected ? 1 : 0.1
+                    };
+                });
+                edges.update(edgeUpdateArray);
+            }
+        });
+        
+        network.on('deselectNode', function(params) {
+            // 선택 해제 시 모든 노드와 엣지를 다시 표시
+            const nodeUpdateArray = nodes.map(function(node) {
+                return {id: node.id, opacity: 1};
+            });
+            nodes.update(nodeUpdateArray);
+            
+            const edgeUpdateArray = edges.map(function(edge) {
+                return {id: edge.id, opacity: 1};
+            });
+            edges.update(edgeUpdateArray);
+        });
+        
+        network.on('stabilizationEnd', function() {
+            console.log('네트워크 안정화 완료');
+        });
+        
+    } catch (error) {
+        console.error('네트워크 초기화 오류:', error);
+        console.error('오류 상세:', error.stack);
+        const container = document.getElementById('network-container');
+        if (container) {
+            container.innerHTML = 
+                '<div class="alert alert-danger">데이터를 불러오는 중 오류가 발생했습니다.<br>' +
+                '오류: ' + error.message + '</div>';
+        }
+    }
+}
+
+// 범례 생성
+function createLegend(systemTypes) {
+    const systemColors = {
+        "SAP": "#81c784",
+        "APLAN": "#64b5f6",
+        "BW": "#ffb74d",
+        "BI": "#ba68c8",
+        "EAI": "#ef5350",
+        "IAM": "#4dd0e1",
+        "NPD": "#fff176",
+        "CDP": "#4db6ac",
+        "LEGACY": "#a1887f"
+    };
+    
+    const legendContainer = document.getElementById('legend-container');
+    if (!legendContainer) return;
+    
+    let legendHtml = '';
+    for (const [system, count] of Object.entries(systemTypes)) {
+        const color = systemColors[system] || '#999999';
+        legendHtml += `
+            <span class="badge" style="background-color: ${color}; color: white; cursor: pointer; font-size: 12px; padding: 6px 10px;"
+                  onclick="filterBySystem('${system}')" 
+                  onmouseover="this.style.opacity='0.8'" 
+                  onmouseout="this.style.opacity='1'">
+                ${system} (${count}개)
+            </span>
+        `;
+    }
+    legendContainer.innerHTML = legendHtml;
+}
+
+// 시스템 타입별 필터
+function filterBySystem(systemType) {
+    document.getElementById('filter-system-type').value = systemType;
+    applyFilters();
+}
+
+// 통계 정보 업데이트
+function updateStats(stats) {
+    const statsHtml = `
+        <div class="row">
+            <div class="col-md-3">
+                <h5>표시된 오브젝트</h5>
+                <p class="fs-3 mb-0">${stats.total_nodes}개</p>
+            </div>
+            <div class="col-md-3">
+                <h5>표시된 관계</h5>
+                <p class="fs-3 mb-0">${stats.total_edges}개</p>
+            </div>
+            <div class="col-md-6">
+                <h5>시스템 타입별 통계</h5>
+                <div class="d-flex flex-wrap gap-2">
+                    ${Object.entries(stats.system_types).map(([system, count]) => 
+                        `<span class="badge bg-secondary">${system}: ${count}개</span>`
+                    ).join('')}
+                </div>
+            </div>
+        </div>
+    `;
+    document.getElementById('stats-container').innerHTML = statsHtml;
+}
+
+// 필터 적용
+async function applyFilters() {
+    const systemType = document.getElementById('filter-system-type').value;
+    const layer = document.getElementById('filter-layer').value;
+    const module = document.getElementById('filter-module').value;
+    
+    const params = new URLSearchParams();
+    if (systemType) params.append('system_type', systemType);
+    if (layer) params.append('layer', layer);
+    if (module) params.append('module', module);
+    
+    try {
+        const response = await fetch(`/objects/overview/network?${params.toString()}`);
+        const data = await response.json();
+        
+        allNodesData = data.nodes;
+        allEdgesData = data.edges;
+        
+        updateStats(data.stats);
+        
+        nodes.clear();
+        edges.clear();
+        nodes.add(data.nodes);
+        edges.add(data.edges);
+        
+        // 네트워크 다시 그리기
+        if (network) {
+            network.fit({
+                animation: true
+            });
+        }
+    } catch (error) {
+        console.error('필터 적용 오류:', error);
+        alert('필터 적용 중 오류가 발생했습니다.');
+    }
+}
+
+// 필터 초기화
+function clearFilters() {
+    document.getElementById('filter-system-type').value = '';
+    document.getElementById('filter-layer').value = '';
+    document.getElementById('filter-module').value = '';
+    applyFilters();
+}
+
+// 검색 처리
+function handleSearch(event) {
+    if (event.key === 'Enter') {
+        highlightSearch();
+    }
+}
+
+// 검색 하이라이트
+function highlightSearch() {
+    const searchTerm = document.getElementById('search-input').value.toLowerCase().trim();
+    
+    if (!searchTerm) {
+        clearHighlight();
+        return;
+    }
+    
+    const matchingNodes = [];
+    const matchingNodeIds = new Set();
+    
+    nodes.forEach(function(node) {
+        const label = node.label.toLowerCase();
+        const title = node.title.toLowerCase();
+        
+        if (label.includes(searchTerm) || title.includes(searchTerm)) {
+            matchingNodes.push(node.id);
+            matchingNodeIds.add(node.id);
+        }
+    });
+    
+    if (matchingNodes.length > 0) {
+        // 연결된 노드도 찾기
+        const connectedNodeIds = new Set(matchingNodes);
+        edges.forEach(function(edge) {
+            if (matchingNodeIds.has(edge.from)) {
+                connectedNodeIds.add(edge.to);
+            }
+            if (matchingNodeIds.has(edge.to)) {
+                connectedNodeIds.add(edge.from);
+            }
+        });
+        
+        // 매칭된 노드 강조, 연결된 노드는 반투명, 나머지는 매우 반투명
+        const nodeUpdateArray = nodes.map(function(node) {
+            if (matchingNodeIds.has(node.id)) {
+                return {
+                    id: node.id,
+                    borderWidth: 5,
+                    borderColor: '#ff0000',
+                    opacity: 1,
+                    shadow: true
+                };
+            } else if (connectedNodeIds.has(node.id)) {
+                return {
+                    id: node.id,
+                    borderWidth: 3,
+                    opacity: 0.6
+                };
+            } else {
+                return {
+                    id: node.id,
+                    borderWidth: 2,
+                    opacity: 0.15
+                };
+            }
+        });
+        nodes.update(nodeUpdateArray);
+        
+        // 엣지도 하이라이트
+        const edgeUpdateArray = edges.map(function(edge) {
+            const isMatching = matchingNodeIds.has(edge.from) || matchingNodeIds.has(edge.to);
+            const isConnected = connectedNodeIds.has(edge.from) && connectedNodeIds.has(edge.to);
+            
+            if (isMatching) {
+                return {
+                    id: edge.id,
+                    width: 4,
+                    opacity: 1
+                };
+            } else if (isConnected) {
+                return {
+                    id: edge.id,
+                    width: 2,
+                    opacity: 0.6
+                };
+            } else {
+                return {
+                    id: edge.id,
+                    width: 1,
+                    opacity: 0.1
+                };
+            }
+        });
+        edges.update(edgeUpdateArray);
+        
+        // 첫 번째 매칭 노드로 포커스
+        network.focus(matchingNodes[0], {
+            scale: 1.8,
+            animation: true
+        });
+        
+        // 결과 메시지 표시
+        const resultDiv = document.createElement('div');
+        resultDiv.className = 'alert alert-info alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x mt-3';
+        resultDiv.style.zIndex = '9999';
+        resultDiv.innerHTML = `
+            <strong>검색 결과:</strong> ${matchingNodes.length}개의 오브젝트를 찾았습니다.
+            <button type="button" class="btn-close" onclick="this.parentElement.remove()"></button>
+        `;
+        document.body.appendChild(resultDiv);
+        setTimeout(() => resultDiv.remove(), 3000);
+    } else {
+        alert('검색 결과가 없습니다.');
+    }
+}
+
+// 하이라이트 제거
+function clearHighlight() {
+    const nodeUpdateArray = nodes.map(function(node) {
+        return {
+            id: node.id,
+            borderWidth: 3,
+            opacity: 1,
+            shadow: false
+        };
+    });
+    nodes.update(nodeUpdateArray);
+    
+    const edgeUpdateArray = edges.map(function(edge) {
+        return {
+            id: edge.id,
+            width: edge.width || 2,
+            opacity: 1
+        };
+    });
+    edges.update(edgeUpdateArray);
+}
+
+// 뷰 리셋
+function resetView() {
+    if (network) {
+        network.fit({
+            animation: true
+        });
+    }
+    clearFilters();
+    clearHighlight();
+    document.getElementById('search-input').value = '';
+}
+
+// 전체 보기
+function fitNetwork() {
+    if (network) {
+        network.fit({
+            animation: true
+        });
+    }
+}
+
+// 물리 엔진 토글
+function togglePhysics() {
+    physicsEnabled = !physicsEnabled;
+    if (network) {
+        network.setOptions({
+            physics: {
+                enabled: physicsEnabled
+            }
+        });
+    }
+}
+
+// 계층적 레이아웃 토글
+let hierarchicalEnabled = false;
+function toggleHierarchical() {
+    hierarchicalEnabled = !hierarchicalEnabled;
+    if (network) {
+        network.setOptions({
+            layout: {
+                hierarchical: {
+                    enabled: hierarchicalEnabled,
+                    direction: 'LR',
+                    sortMethod: 'directed',
+                    levelSeparation: 150,
+                    nodeSpacing: 200,
+                    treeSpacing: 200
+                }
+            }
+        });
+    }
+}
+
+// 페이지 로드 시 네트워크 초기화
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM 로드 완료, 네트워크 초기화 시작...');
+    // vis.js가 로드될 때까지 약간 대기
+    if (typeof vis !== 'undefined') {
+        initNetwork();
+    } else {
+        // vis.js 로드를 기다림
+        let checkCount = 0;
+        const checkVis = setInterval(function() {
+            checkCount++;
+            if (typeof vis !== 'undefined') {
+                clearInterval(checkVis);
+                initNetwork();
+            } else if (checkCount > 50) {
+                clearInterval(checkVis);
+                console.error('vis.js 로드 타임아웃');
+                document.getElementById('network-container').innerHTML = 
+                    '<div class="alert alert-danger">vis.js 라이브러리를 불러올 수 없습니다. 페이지를 새로고침해주세요.</div>';
+            }
+        }, 100);
+    }
+});
+</script>
+{% endblock %}

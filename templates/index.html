@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}검색 - APlan Integration Impact Map{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="mb-0">오브젝트 검색</h2>
+            <a href="/objects/overview" class="btn btn-primary">전체 시스템 맵 보기</a>
+        </div>
+        
+        <!-- 검색 폼 -->
+        <form method="get" action="/objects" class="mb-4">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label for="q" class="form-label">키워드</label>
+                    <input type="text" class="form-control" id="q" name="q" 
+                           value="{{ q or '' }}" 
+                           placeholder="object_key, name, description 검색">
+                </div>
+                <div class="col-md-3">
+                    <label for="system_type" class="form-label">시스템 타입</label>
+                    <select class="form-select" id="system_type" name="system_type">
+                        <option value="">All</option>
+                        <option value="SAP" {% if system_type == 'SAP' %}selected{% endif %}>SAP</option>
+                        <option value="APLAN" {% if system_type == 'APLAN' %}selected{% endif %}>APLAN</option>
+                        <option value="BW" {% if system_type == 'BW' %}selected{% endif %}>BW</option>
+                        <option value="BI" {% if system_type == 'BI' %}selected{% endif %}>BI</option>
+                        <option value="EAI" {% if system_type == 'EAI' %}selected{% endif %}>EAI</option>
+                        <option value="IAM" {% if system_type == 'IAM' %}selected{% endif %}>IAM</option>
+                        <option value="NPD" {% if system_type == 'NPD' %}selected{% endif %}>NPD</option>
+                        <option value="CDP" {% if system_type == 'CDP' %}selected{% endif %}>CDP</option>
+                        <option value="LEGACY" {% if system_type == 'LEGACY' %}selected{% endif %}>LEGACY</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="object_type" class="form-label">오브젝트 타입</label>
+                    <select class="form-select" id="object_type" name="object_type">
+                        <option value="">All</option>
+                        <option value="IF" {% if object_type == 'IF' %}selected{% endif %}>IF</option>
+                        <option value="TABLE" {% if object_type == 'TABLE' %}selected{% endif %}>TABLE</option>
+                        <option value="VIEW" {% if object_type == 'VIEW' %}selected{% endif %}>VIEW</option>
+                        <option value="JOB" {% if object_type == 'JOB' %}selected{% endif %}>JOB</option>
+                        <option value="REPORT" {% if object_type == 'REPORT' %}selected{% endif %}>REPORT</option>
+                        <option value="UI" {% if object_type == 'UI' %}selected{% endif %}>UI</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">&nbsp;</label>
+                    <button type="submit" class="btn btn-primary w-100">검색</button>
+                </div>
+            </div>
+        </form>
+        
+        <!-- 결과 테이블 -->
+        {% if objects %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>object_key</th>
+                        <th>name</th>
+                        <th>system_type</th>
+                        <th>object_type</th>
+                        <th>layer</th>
+                        <th>module</th>
+                        <th>status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for obj in objects %}
+                    <tr style="cursor: pointer;" onclick="window.location.href='/objects/{{ obj.id }}'">
+                        <td><code>{{ obj.object_key }}</code></td>
+                        <td>{{ obj.name }}</td>
+                        <td><span class="badge bg-secondary">{{ obj.system_type }}</span></td>
+                        <td><span class="badge bg-info">{{ obj.object_type }}</span></td>
+                        <td>{{ obj.layer }}</td>
+                        <td>{{ obj.module or '-' }}</td>
+                        <td>
+                            {% if obj.status == 'ACTIVE' %}
+                                <span class="badge bg-success">ACTIVE</span>
+                            {% elif obj.status == 'DRAFT' %}
+                                <span class="badge bg-warning">DRAFT</span>
+                            {% else %}
+                                <span class="badge bg-danger">DEPRECATED</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <p class="text-muted">총 {{ objects|length }}개 결과</p>
+        {% else %}
+        <div class="alert alert-info">
+            검색 결과가 없습니다.
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
