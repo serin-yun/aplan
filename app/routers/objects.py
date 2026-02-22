@@ -19,6 +19,7 @@ from pathlib import Path
 from app.database import get_session
 from app.models import IntegrationObject, IntegrationRelation
 from app.services.impact_service import get_impact_graph, generate_mermaid_code, generate_full_map_mermaid_code
+from app.services.overview_service import build_flow_cards, normalize_view_mode
 
 router = APIRouter(prefix="/objects", tags=["objects"])
 
@@ -229,6 +230,8 @@ async def autocomplete(
 @router.get("/overview", response_class=HTMLResponse, include_in_schema=False)
 async def get_overview_map(
     request: Request,
+    mode: Optional[str] = Query(None, description="overview 모드 (cluster|full)"),
+    view: Optional[str] = Query(None, description="보기 모드 (business|leader|ops)"),
     session: Session = Depends(get_session)
 ):
     """
@@ -236,33 +239,46 @@ async def get_overview_map(
     
     모든 오브젝트와 관계를 한눈에 볼 수 있는 전체 맵을 표시합니다.
     """
-    from app.services.impact_service import generate_full_map_mermaid_code
-    
-    mermaid_code = generate_full_map_mermaid_code(session)
-    
-    # 통계 정보
-    statement = select(IntegrationObject).where(IntegrationObject.status == "ACTIVE")
-    objects = session.exec(statement).all()
-    object_count = len(objects)
-    
-    statement = select(IntegrationRelation).where(IntegrationRelation.status == "ACTIVE")
-    relations = session.exec(statement).all()
-    relation_count = len(relations)
-    
-    # 시스템 타입별 통계
-    system_stats = {}
-    for obj in objects:
-        system = obj.system_type
-        system_stats[system] = system_stats.get(system, 0) + 1
-    
+    view_mode = normalize_view_mode(view)
+    mode_value = mode if mode in {"full", "cluster"} else "cluster"
+
+    if mode_value == "full":
+        mermaid_code = generate_full_map_mermaid_code(session)
+
+        statement = select(IntegrationObject).where(IntegrationObject.status == "ACTIVE")
+        objects = session.exec(statement).all()
+        object_count = len(objects)
+
+        statement = select(IntegrationRelation).where(IntegrationRelation.status == "ACTIVE")
+        relations = session.exec(statement).all()
+        relation_count = len(relations)
+
+        system_stats = {}
+        for obj in objects:
+            system = obj.system_type
+            system_stats[system] = system_stats.get(system, 0) + 1
+
+        return templates.TemplateResponse(
+            "overview.html",
+            {
+                "request": request,
+                "mermaid_code": mermaid_code,
+                "object_count": object_count,
+                "relation_count": relation_count,
+                "system_stats": system_stats,
+                "view_mode": view_mode,
+            }
+        )
+
+    flow_cards, primary_flow_key = build_flow_cards(session=session)
     return templates.TemplateResponse(
-        "overview.html",
+        "overview_cluster.html",
         {
             "request": request,
-            "mermaid_code": mermaid_code,
-            "object_count": object_count,
-            "relation_count": relation_count,
-            "system_stats": system_stats
+            "view_mode": view_mode,
+            "flow_cards": flow_cards,
+            "primary_flow_key": primary_flow_key,
+            "mode": mode_value,
         }
     )
 

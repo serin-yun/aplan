@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}Flow 상세 - APlan Integration Impact Map{% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item"><a href="/objects/overview?view={{ view_mode }}">전체 맵</a></li>
+<li class="breadcrumb-item active">Flow 상세</li>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <h3 class="mb-3">{{ flow_key }}</h3>
+                <p class="text-muted">이 Flow 상세 화면은 다음 커밋에서 Stepper 중심으로 제공될 예정입니다.</p>
+                <a class="btn btn-outline-primary" href="/objects/overview?view={{ view_mode }}">요약 화면으로 돌아가기</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

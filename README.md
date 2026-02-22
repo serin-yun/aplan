@@ -30,8 +30,17 @@ uvicorn app.main:app --reload
 
 - **대시보드**: http://localhost:8000/dashboard
 - **검색 화면**: http://localhost:8000/objects
-- **전체 맵**: http://localhost:8000/objects/overview
+- **전체 맵(요약)**: http://localhost:8000/objects/overview?view=business
+- **전체 맵(요약/리더)**: http://localhost:8000/objects/overview?view=leader
+- **전체 맵(요약/운영)**: http://localhost:8000/objects/overview?view=ops
+- **전체 맵(전수)**: http://localhost:8000/objects/overview?mode=full&view=ops
 - **API 문서**: http://localhost:8000/docs
+
+## ✅ 커밋 1 검증 시나리오
+
+- http://localhost:8000/objects/overview?view=business 접속 → 전수 그래프 없이 요약 지도 + 카드만 노출
+- 상단 PRIMARY FLOW 버튼 또는 첫 카드 클릭 → `/flows/{flow_key}?view=business`로 이동
+- http://localhost:8000/objects/overview?mode=full&view=ops 접속 → 기존 전수 맵 유지
 
 ## 📋 기술 스택
 
