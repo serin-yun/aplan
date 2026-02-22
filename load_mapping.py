@@ -9,6 +9,7 @@ MRD 6.4 요구사항:
 
 import pandas as pd
 import logging
+from datetime import datetime
 from pathlib import Path
 from sqlmodel import Session, select
 from app.database import engine, init_db
@@ -64,6 +65,7 @@ def load_objects(session: Session, df: pd.DataFrame, source_doc: str) -> dict[st
             'layer': str(row.get('layer', '')).strip(),
             'description': str(row.get('description', '')).strip() if pd.notna(row.get('description')) else None,
             'owner_team': str(row.get('owner_team', '')).strip() if pd.notna(row.get('owner_team')) else None,
+            'owner': str(row.get('owner', '')).strip() if pd.notna(row.get('owner')) else None,
             'module': str(row.get('module', '')).strip() if pd.notna(row.get('module')) else None,
             'status': str(row.get('status', 'ACTIVE')).strip() if pd.notna(row.get('status')) else 'ACTIVE',
             'tags': str(row.get('tags', '')).strip() if pd.notna(row.get('tags')) else None,
@@ -77,7 +79,7 @@ def load_objects(session: Session, df: pd.DataFrame, source_doc: str) -> dict[st
             # UPDATE
             for key, value in obj_data.items():
                 setattr(existing_obj, key, value)
-            existing_obj.updated_at = pd.Timestamp.now()
+            existing_obj.updated_at = datetime.utcnow()
             session.add(existing_obj)
             object_key_to_id[object_key] = existing_obj.id
             logger.info(f"업데이트: {object_key}")
@@ -100,7 +102,79 @@ def load_relations(session: Session, df: pd.DataFrame, object_key_to_id: dict[st
     - from_key/to_key로 IntegrationObject.object_key 조회
     - 매칭 실패 시 WARNING 로그 출력 후 스킵
     - (from_object_id, to_object_id, relation_type) 조합 기준으로 UPSERT
+    - relations 시트가 비어있으면 objects 행 순서대로 자동 매핑
     """
+    # relations 시트가 비어있으면 tags 기준으로 역순 자동 매핑
+    if df.empty or len(df) == 0:
+        logger.info("relations 시트가 비어있습니다. tags 기준 역순으로 자동 관계 생성...")
+        
+        # objects_df를 다시 읽어서 tags 정보 가져오기
+        objects_df = pd.read_excel(source_doc, sheet_name='objects')
+        
+        # tags별로 object_key 그룹화 (순서 유지)
+        tags_groups = {}
+        for idx, row in objects_df.iterrows():
+            object_key = str(row['object_key']).strip()
+            tags = str(row.get('tags', '')).strip() if pd.notna(row.get('tags')) else ''
+            
+            if tags not in tags_groups:
+                tags_groups[tags] = []
+            tags_groups[tags].append(object_key)
+        
+        relation_count = 0
+        for tags, keys in tags_groups.items():
+            if len(keys) < 2:
+                continue
+            
+            logger.info(f"tags '{tags}' 그룹 역순 관계 생성: {len(keys)}개 오브젝트")
+            
+            # 역순으로 관계 생성: D->C, C->B, B->A
+            for i in range(len(keys) - 1, 0, -1):
+                from_key = keys[i]
+                to_key = keys[i - 1]
+                
+                from_object_id = object_key_to_id.get(from_key)
+                to_object_id = object_key_to_id.get(to_key)
+                
+                if not from_object_id or not to_object_id:
+                    continue
+                
+                relation_type = 'FLOWS_TO'
+                
+                # 기존 관계 조회
+                statement = select(IntegrationRelation).where(
+                    IntegrationRelation.from_object_id == from_object_id,
+                    IntegrationRelation.to_object_id == to_object_id,
+                    IntegrationRelation.relation_type == relation_type
+                )
+                existing_rel = session.exec(statement).first()
+                
+                rel_data = {
+                    'from_object_id': from_object_id,
+                    'to_object_id': to_object_id,
+                    'relation_type': relation_type,
+                    'status': 'ACTIVE',
+                    'source_doc': source_doc,
+                    'source_sheet': 'auto_generated',
+                    'source_row': relation_count + 1,
+                }
+                
+                if existing_rel:
+                    for key, value in rel_data.items():
+                        setattr(existing_rel, key, value)
+                    existing_rel.updated_at = datetime.utcnow()
+                    session.add(existing_rel)
+                    logger.info(f"자동 관계 업데이트: {from_key} -> {to_key} (tags: {tags})")
+                else:
+                    new_rel = IntegrationRelation(**rel_data)
+                    session.add(new_rel)
+                    logger.info(f"자동 관계 생성: {from_key} -> {to_key} (tags: {tags})")
+                
+                relation_count += 1
+        
+        logger.info(f"자동 관계 생성 완료: {relation_count}개")
+        return
+    
     # 필수 컬럼 확인
     required_columns = ['from_key', 'to_key']
     missing_columns = [col for col in required_columns if col not in df.columns]
@@ -153,7 +227,7 @@ def load_relations(session: Session, df: pd.DataFrame, object_key_to_id: dict[st
             # UPDATE
             for key, value in rel_data.items():
                 setattr(existing_rel, key, value)
-            existing_rel.updated_at = pd.Timestamp.now()
+            existing_rel.updated_at = datetime.utcnow()
             session.add(existing_rel)
             logger.info(f"관계 업데이트: {from_key} -> {to_key}")
         else:
@@ -212,4 +286,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 

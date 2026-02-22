@@ -1,0 +1,585 @@
+/* ============================================
+   모던 UI/UX 디자인 시스템 - 색상 팔레트
+   ============================================ */
+
+:root {
+    /* Primary Colors - 세련된 블루 톤 */
+    --primary-50: #f0f9ff;
+    --primary-100: #e0f2fe;
+    --primary-200: #bae6fd;
+    --primary-300: #7dd3fc;
+    --primary-400: #38bdf8;
+    --primary-500: #0ea5e9;
+    --primary-600: #0284c7;
+    --primary-700: #0369a1;
+    --primary-800: #075985;
+    --primary-900: #0c4a6e;
+    
+    /* Accent Colors - 보라/핑크 그라데이션 */
+    --accent-50: #faf5ff;
+    --accent-100: #f3e8ff;
+    --accent-200: #e9d5ff;
+    --accent-300: #d8b4fe;
+    --accent-400: #c084fc;
+    --accent-500: #a855f7;
+    --accent-600: #9333ea;
+    --accent-700: #7e22ce;
+    
+    /* Success Colors - 에메랄드 그린 */
+    --success-50: #ecfdf5;
+    --success-100: #d1fae5;
+    --success-500: #10b981;
+    --success-600: #059669;
+    --success-700: #047857;
+    
+    /* Warning Colors - 앰버 */
+    --warning-50: #fffbeb;
+    --warning-100: #fef3c7;
+    --warning-500: #f59e0b;
+    --warning-600: #d97706;
+    
+    /* Danger Colors - 로즈 */
+    --danger-50: #fff1f2;
+    --danger-100: #ffe4e6;
+    --danger-500: #ef4444;
+    --danger-600: #dc2626;
+    
+    /* Neutral Colors - 그레이 스케일 */
+    --gray-50: #f9fafb;
+    --gray-100: #f3f4f6;
+    --gray-200: #e5e7eb;
+    --gray-300: #d1d5db;
+    --gray-400: #9ca3af;
+    --gray-500: #6b7280;
+    --gray-600: #4b5563;
+    --gray-700: #374151;
+    --gray-800: #1f2937;
+    --gray-900: #111827;
+    
+    /* Shadows - 부드러운 그림자 */
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    
+    /* Border Radius */
+    --radius-sm: 0.375rem;
+    --radius: 0.5rem;
+    --radius-md: 0.75rem;
+    --radius-lg: 1rem;
+    --radius-xl: 1.5rem;
+    
+    /* Transitions */
+    --transition-fast: 150ms ease-in-out;
+    --transition-base: 200ms ease-in-out;
+    --transition-slow: 300ms ease-in-out;
+}
+
+/* ============================================
+   전역 스타일 개선
+   ============================================ */
+
+body {
+    background: #f8f9fa;
+    min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+    color: var(--gray-800);
+    line-height: 1.6;
+}
+
+.container {
+    background: white;
+    border-radius: var(--radius-md);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    padding: 2rem;
+    margin-top: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+/* ============================================
+   헤더 스타일 개선
+   ============================================ */
+
+.header {
+    background: #007bff;
+    border-radius: var(--radius-md);
+    padding: 1.25rem 2rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    border: none;
+}
+
+.header h1 {
+    color: white;
+    font-weight: 700;
+    font-size: 1.75rem;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    margin: 0;
+}
+
+.header h1 a {
+    color: white;
+    text-decoration: none;
+    transition: opacity var(--transition-base);
+}
+
+.header h1 a:hover {
+    opacity: 0.9;
+}
+
+.header nav .btn {
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    transition: all var(--transition-base);
+    font-weight: 500;
+}
+
+.header nav .btn:hover {
+    background: rgba(255, 255, 255, 0.25);
+    border-color: rgba(255, 255, 255, 0.4);
+}
+
+/* ============================================
+   카드 스타일 개선
+   ============================================ */
+
+.card {
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-md);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    transition: all var(--transition-base);
+    overflow: hidden;
+    background: white;
+}
+
+.card:hover {
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.card-header {
+    background: #f8f9fa;
+    border-bottom: 1px solid var(--gray-200);
+    padding: 1rem 1.5rem;
+    font-weight: 600;
+    color: var(--gray-800);
+}
+
+.card-body {
+    padding: 1.5rem;
+}
+
+/* ============================================
+   버튼 스타일 개선
+   ============================================ */
+
+.btn {
+    border-radius: var(--radius);
+    font-weight: 500;
+    padding: 0.625rem 1.25rem;
+    transition: all var(--transition-base);
+    border: none;
+    box-shadow: var(--shadow-sm);
+}
+
+.btn-primary {
+    background: #007bff;
+    color: white;
+    border-color: #007bff;
+}
+
+.btn-primary:hover {
+    background: #0056b3;
+    border-color: #0056b3;
+}
+
+.btn-outline-primary {
+    border: 1px solid #007bff;
+    color: #007bff;
+    background: white;
+}
+
+.btn-outline-primary:hover {
+    background: #007bff;
+    color: white;
+}
+
+.btn-success {
+    background: linear-gradient(135deg, var(--success-600) 0%, var(--success-500) 100%);
+    color: white;
+}
+
+.btn-success:hover {
+    background: linear-gradient(135deg, var(--success-700) 0%, var(--success-600) 100%);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+/* ============================================
+   배지 스타일 개선
+   ============================================ */
+
+.badge {
+    padding: 0.375rem 0.75rem;
+    border-radius: var(--radius);
+    font-weight: 500;
+    font-size: 0.75rem;
+    letter-spacing: 0.025em;
+}
+
+.bg-primary {
+    background: #007bff !important;
+}
+
+.bg-secondary {
+    background: #6c757d !important;
+}
+
+.bg-success {
+    background: #28a745 !important;
+}
+
+.bg-info {
+    background: #17a2b8 !important;
+}
+
+.bg-warning {
+    background: #ffc107 !important;
+}
+
+.bg-danger {
+    background: #dc3545 !important;
+}
+
+/* ============================================
+   테이블 스타일 개선
+   ============================================ */
+
+.table {
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.table thead {
+    background: linear-gradient(135deg, var(--gray-50) 0%, var(--gray-100) 100%);
+}
+
+.table thead th {
+    border: none;
+    font-weight: 600;
+    color: var(--gray-700);
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    padding: 1rem;
+}
+
+.table tbody tr {
+    transition: all var(--transition-fast);
+    border-bottom: 1px solid var(--gray-100);
+}
+
+.table tbody tr:hover {
+    background: var(--primary-50);
+    transform: scale(1.01);
+    box-shadow: var(--shadow-sm);
+}
+
+.table tbody td {
+    padding: 1rem;
+    border: none;
+    vertical-align: middle;
+}
+
+/* ============================================
+   폼 스타일 개선
+   ============================================ */
+
+.form-control, .form-select {
+    border: 2px solid var(--gray-200);
+    border-radius: var(--radius);
+    padding: 0.625rem 1rem;
+    transition: all var(--transition-base);
+    font-size: 0.9375rem;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: var(--primary-500);
+    box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+    outline: none;
+}
+
+.form-label {
+    font-weight: 600;
+    color: var(--gray-700);
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
+}
+
+/* ============================================
+   브레드크럼 스타일 개선
+   ============================================ */
+
+.breadcrumb {
+    background: var(--gray-50);
+    border-radius: var(--radius);
+    padding: 0.75rem 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.breadcrumb-item a {
+    color: var(--primary-600);
+    text-decoration: none;
+    transition: color var(--transition-base);
+}
+
+.breadcrumb-item a:hover {
+    color: var(--primary-700);
+}
+
+.breadcrumb-item.active {
+    color: var(--gray-600);
+    font-weight: 500;
+}
+
+/* ============================================
+   알림 스타일 개선
+   ============================================ */
+
+.alert {
+    border: none;
+    border-radius: var(--radius-md);
+    padding: 1rem 1.5rem;
+    box-shadow: var(--shadow-sm);
+    border-left: 4px solid;
+}
+
+.alert-info {
+    background: var(--primary-50);
+    color: var(--primary-800);
+    border-left-color: var(--primary-500);
+}
+
+.alert-success {
+    background: var(--success-50);
+    color: var(--success-800);
+    border-left-color: var(--success-500);
+}
+
+.alert-warning {
+    background: var(--warning-50);
+    color: var(--warning-800);
+    border-left-color: var(--warning-500);
+}
+
+.alert-danger {
+    background: var(--danger-50);
+    color: var(--danger-800);
+    border-left-color: var(--danger-500);
+}
+
+/* ============================================
+   스켈레톤 로더 스타일
+   ============================================ */
+
+.skeleton-loader {
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+.skeleton-header {
+    height: 40px;
+    background: linear-gradient(90deg, var(--gray-100) 25%, var(--gray-200) 50%, var(--gray-100) 75%);
+    background-size: 200% 100%;
+    border-radius: var(--radius);
+    margin-bottom: 15px;
+}
+
+.skeleton-row {
+    height: 50px;
+    background: linear-gradient(90deg, var(--gray-100) 25%, var(--gray-200) 50%, var(--gray-100) 75%);
+    background-size: 200% 100%;
+    border-radius: var(--radius);
+    margin-bottom: 10px;
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+/* ============================================
+   로딩 오버레이
+   ============================================ */
+
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(5px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+}
+
+.loading-spinner-container {
+    text-align: center;
+}
+
+.loading-spinner-container .spinner-border {
+    width: 3rem;
+    height: 3rem;
+    border-color: var(--primary-500);
+    border-right-color: transparent;
+}
+
+/* ============================================
+   도움말 아이콘 스타일
+   ============================================ */
+
+.help-icon {
+    color: var(--gray-400);
+    cursor: help;
+    margin-left: 5px;
+    font-size: 0.9em;
+    transition: color var(--transition-base);
+}
+
+.help-icon:hover {
+    color: var(--primary-500);
+}
+
+/* ============================================
+   검색어 하이라이트
+   ============================================ */
+
+mark {
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-weight: 600;
+    color: var(--gray-800);
+}
+
+/* ============================================
+   반응형 디자인
+   ============================================ */
+
+/* ============================================
+   탭 스타일 개선
+   ============================================ */
+
+.nav-tabs {
+    border-bottom: 2px solid var(--gray-200);
+}
+
+.nav-tabs .nav-link {
+    border: none;
+    border-bottom: 3px solid transparent;
+    color: var(--gray-600);
+    font-weight: 500;
+    padding: 0.75rem 1.5rem;
+    transition: all var(--transition-base);
+    background: transparent;
+}
+
+.nav-tabs .nav-link:hover {
+    border-bottom-color: var(--primary-300);
+    color: var(--primary-600);
+    background: var(--primary-50);
+}
+
+.nav-tabs .nav-link.active {
+    color: var(--primary-700);
+    border-bottom-color: var(--primary-500);
+    background: linear-gradient(135deg, var(--primary-50) 0%, #e0f2fe 100%);
+    font-weight: 600;
+}
+
+/* ============================================
+   필터 칩 스타일 개선
+   ============================================ */
+
+#filter-chips .badge {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    transition: all var(--transition-fast);
+}
+
+#filter-chips .badge:hover {
+    transform: scale(1.05);
+    box-shadow: var(--shadow-md);
+}
+
+#filter-chips .btn-close {
+    margin-left: 0.5rem;
+    opacity: 0.8;
+}
+
+#filter-chips .btn-close:hover {
+    opacity: 1;
+}
+
+/* ============================================
+   프리셋 버튼 스타일
+   ============================================ */
+
+#preset-buttons .btn {
+    border-radius: var(--radius);
+    font-weight: 500;
+    transition: all var(--transition-base);
+}
+
+#preset-buttons .btn:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+/* ============================================
+   반응형 디자인
+   ============================================ */
+
+@media (max-width: 768px) {
+    .container {
+        padding: 1rem;
+        margin-top: 1rem;
+        margin-bottom: 1rem;
+        border-radius: var(--radius-md);
+    }
+    
+    .header {
+        padding: 1rem;
+        border-radius: var(--radius-md);
+    }
+    
+    .header h1 {
+        font-size: 1.25rem;
+    }
+    
+    .card-body {
+        padding: 1rem;
+    }
+    
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .process-steps {
+        grid-template-columns: 1fr;
+    }
+}
+

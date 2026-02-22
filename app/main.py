@@ -15,7 +15,7 @@ from fastapi.templating import Jinja2Templates
 from pathlib import Path
 
 from app.database import init_db
-from app.routers import objects
+from app.routers import objects, dashboard, upload
 
 # FastAPI 앱 인스턴스 생성
 app = FastAPI(
@@ -42,12 +42,14 @@ if static_dir.exists():
 
 # 라우터 등록
 app.include_router(objects.router, tags=["objects"])
+app.include_router(dashboard.router, tags=["dashboard"])
+app.include_router(upload.router, tags=["upload"])
 
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
 async def root():
-    """루트 경로 - 검색 화면으로 리다이렉트"""
-    return RedirectResponse(url="/objects")
+    """루트 경로 - 대시보드로 리다이렉트"""
+    return RedirectResponse(url="/dashboard")
 
 
 if __name__ == "__main__":

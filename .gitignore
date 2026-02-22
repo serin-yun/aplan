@@ -54,3 +54,4 @@ mapping.xlsx
 *.tmp
 *.bak
 *~
+~$*.xlsx

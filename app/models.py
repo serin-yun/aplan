@@ -20,6 +20,7 @@ class IntegrationObjectBase(SQLModel):
     layer: str = Field(description="레이어 (Legacy, API, Cust, In, Staging, Out, UI)")
     description: Optional[str] = Field(default=None, description="설명")
     owner_team: Optional[str] = Field(default=None, description="담당 조직/팀")
+    owner: Optional[str] = Field(default=None, description="담당자 (개인 이름)")
     module: Optional[str] = Field(default=None, description="업무 도메인 (S&OP, 재고, 판매, 생산, 구매)")
     status: str = Field(default="ACTIVE", description="상태 (ACTIVE, DRAFT, DEPRECATED)")
     tags: Optional[str] = Field(default=None, description="콤마 구분 키워드 (예: 수요계획,판매,SD)")

@@ -19,6 +19,7 @@ def create_template():
         'layer',
         'description',
         'owner_team',
+        'owner',
         'module',
         'status',
         'tags',

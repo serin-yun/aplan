@@ -2,6 +2,10 @@
 
 {% block title %}검색 - APlan Integration Impact Map{% endblock %}
 
+{% block breadcrumb_items %}
+<li class="breadcrumb-item active">검색</li>
+{% endblock %}
+
 {% block content %}
 <div class="row">
     <div class="col-12">
@@ -14,13 +18,30 @@
         <form method="get" action="/objects" class="mb-4">
             <div class="row g-3">
                 <div class="col-md-4">
-                    <label for="q" class="form-label">키워드</label>
-                    <input type="text" class="form-control" id="q" name="q" 
-                           value="{{ q or '' }}" 
-                           placeholder="object_key, name, description 검색">
+                    <label for="q" class="form-label">
+                        키워드
+                        <span class="help-icon" data-bs-toggle="tooltip" title="object_key, name, description에서 검색합니다">
+                            <i class="bi bi-question-circle"></i>
+                        </span>
+                    </label>
+                    <div class="position-relative">
+                        <input type="text" class="form-control" id="q" name="q" 
+                               value="{{ q or '' }}" 
+                               placeholder="object_key, name, description 검색"
+                               autocomplete="off"
+                               onkeyup="handleSearchInput(event)"
+                               onfocus="showAutocomplete()"
+                               onblur="hideAutocomplete()">
+                        <div id="autocomplete-dropdown" class="autocomplete-dropdown" style="display: none;"></div>
+                    </div>
                 </div>
                 <div class="col-md-3">
-                    <label for="system_type" class="form-label">시스템 타입</label>
+                    <label for="system_type" class="form-label">
+                        시스템 타입
+                        <span class="help-icon" data-bs-toggle="tooltip" title="SAP, APLAN, BW, BI, EAI, IAM, NPD, CDP, LEGACY 중 선택">
+                            <i class="bi bi-question-circle"></i>
+                        </span>
+                    </label>
                     <select class="form-select" id="system_type" name="system_type">
                         <option value="">All</option>
                         <option value="SAP" {% if system_type == 'SAP' %}selected{% endif %}>SAP</option>
@@ -35,7 +56,12 @@
                     </select>
                 </div>
                 <div class="col-md-3">
-                    <label for="object_type" class="form-label">오브젝트 타입</label>
+                    <label for="object_type" class="form-label">
+                        오브젝트 타입
+                        <span class="help-icon" data-bs-toggle="tooltip" title="IF, TABLE, VIEW, JOB, REPORT, UI 중 선택">
+                            <i class="bi bi-question-circle"></i>
+                        </span>
+                    </label>
                     <select class="form-select" id="object_type" name="object_type">
                         <option value="">All</option>
                         <option value="IF" {% if object_type == 'IF' %}selected{% endif %}>IF</option>
@@ -52,6 +78,24 @@
                 </div>
             </div>
         </form>
+        
+        <!-- 필터 프리셋 -->
+        <div class="card mb-3" id="filter-presets-section" style="display: none;">
+            <div class="card-body">
+                <h6 class="card-title">필터 프리셋</h6>
+                <div class="d-flex flex-wrap gap-2 mb-2" id="preset-buttons"></div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-outline-primary" onclick="saveCurrentFilter()">현재 필터 저장</button>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="clearAllPresets()">모든 프리셋 삭제</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 활성 필터 칩 -->
+        <div id="active-filters" class="mb-3" style="display: none;">
+            <strong>활성 필터:</strong>
+            <div class="d-flex flex-wrap gap-2 mt-2" id="filter-chips"></div>
+        </div>
         
         <!-- 결과 테이블 -->
         {% if objects %}
@@ -99,5 +143,400 @@
         {% endif %}
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Bootstrap Icons -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+<script>
+let autocompleteTimeout = null;
+let selectedIndex = -1;
+let autocompleteItems = [];
+let searchQuery = "{{ q or '' }}";
+
+// 툴팁 초기화
+document.addEventListener('DOMContentLoaded', function() {
+    // Bootstrap 툴팁 초기화
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+    
+    // 검색어 하이라이트
+    if (searchQuery) {
+        highlightSearchTerms(searchQuery);
+    }
+    
+    // 필터 프리셋 로드
+    loadFilterPresets();
+    updateActiveFilters();
+});
+
+// 검색어 하이라이트
+function highlightSearchTerms(query) {
+    if (!query) return;
+    
+    const terms = query.trim().split(/\s+/);
+    const rows = document.querySelectorAll('tbody tr');
+    
+    rows.forEach(row => {
+        // object_key 하이라이트
+        const keyCell = row.querySelector('td code');
+        if (keyCell) {
+            let keyText = keyCell.textContent;
+            terms.forEach(term => {
+                const regex = new RegExp(`(${escapeRegex(term)})`, 'gi');
+                keyText = keyText.replace(regex, '<mark>$1</mark>');
+            });
+            keyCell.innerHTML = keyText;
+        }
+        
+        // name 하이라이트
+        const nameCell = row.querySelector('td:nth-child(2)');
+        if (nameCell && !nameCell.querySelector('code')) {
+            let nameText = nameCell.textContent;
+            terms.forEach(term => {
+                const regex = new RegExp(`(${escapeRegex(term)})`, 'gi');
+                nameText = nameText.replace(regex, '<mark>$1</mark>');
+            });
+            nameCell.innerHTML = nameText;
+        }
+    });
+}
+
+// 정규식 이스케이프
+function escapeRegex(str) {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// 검색 입력 처리
+function handleSearchInput(event) {
+    const query = event.target.value.trim();
+    
+    // 엔터 키 처리
+    if (event.key === 'Enter') {
+        if (selectedIndex >= 0 && autocompleteItems.length > 0) {
+            event.preventDefault();
+            selectAutocompleteItem(autocompleteItems[selectedIndex]);
+            return;
+        }
+        // 엔터 키로 검색 폼 제출
+        return;
+    }
+    
+    // 화살표 키 처리
+    if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        selectedIndex = Math.min(selectedIndex + 1, autocompleteItems.length - 1);
+        updateAutocompleteSelection();
+        return;
+    }
+    
+    if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        selectedIndex = Math.max(selectedIndex - 1, -1);
+        updateAutocompleteSelection();
+        return;
+    }
+    
+    // ESC 키 처리
+    if (event.key === 'Escape') {
+        hideAutocomplete();
+        return;
+    }
+    
+    // 검색어가 1자 이상일 때만 자동완성
+    if (query.length >= 1) {
+        clearTimeout(autocompleteTimeout);
+        autocompleteTimeout = setTimeout(() => {
+            fetchAutocomplete(query);
+        }, 300); // 300ms 디바운스
+    } else {
+        hideAutocomplete();
+    }
+}
+
+// 자동완성 데이터 가져오기
+async function fetchAutocomplete(query) {
+    try {
+        const response = await fetch(`/objects/api/autocomplete?q=${encodeURIComponent(query)}&limit=10`);
+        const items = await response.json();
+        
+        autocompleteItems = items;
+        selectedIndex = -1;
+        
+        if (items.length > 0) {
+            showAutocomplete(items);
+        } else {
+            hideAutocomplete();
+        }
+    } catch (error) {
+        console.error('자동완성 오류:', error);
+        hideAutocomplete();
+    }
+}
+
+// 자동완성 표시
+function showAutocomplete(items = null) {
+    const dropdown = document.getElementById('autocomplete-dropdown');
+    
+    if (!items) {
+        items = autocompleteItems;
+    }
+    
+    if (items && items.length > 0) {
+        let html = '<div class="list-group">';
+        items.forEach((item, index) => {
+            const isSelected = index === selectedIndex ? 'active' : '';
+            html += `
+                <a href="#" class="list-group-item list-group-item-action ${isSelected}" 
+                   data-index="${index}"
+                   onclick="event.preventDefault(); selectAutocompleteItem(${JSON.stringify(item).replace(/"/g, '&quot;')}); return false;">
+                    <div class="d-flex w-100 justify-content-between">
+                        <h6 class="mb-1">${escapeHtml(item.display)}</h6>
+                        <small>
+                            <span class="badge bg-secondary">${item.system_type}</span>
+                            <span class="badge bg-info">${item.object_type}</span>
+                        </small>
+                    </div>
+                </a>
+            `;
+        });
+        html += '</div>';
+        dropdown.innerHTML = html;
+        dropdown.style.display = 'block';
+    } else {
+        hideAutocomplete();
+    }
+}
+
+// 자동완성 숨기기
+function hideAutocomplete() {
+    // 약간의 지연을 두어 클릭 이벤트가 먼저 처리되도록 함
+    setTimeout(() => {
+        const dropdown = document.getElementById('autocomplete-dropdown');
+        dropdown.style.display = 'none';
+        selectedIndex = -1;
+    }, 200);
+}
+
+// 자동완성 선택 업데이트
+function updateAutocompleteSelection() {
+    const items = document.querySelectorAll('#autocomplete-dropdown .list-group-item');
+    items.forEach((item, index) => {
+        if (index === selectedIndex) {
+            item.classList.add('active');
+        } else {
+            item.classList.remove('active');
+        }
+    });
+}
+
+// 자동완성 항목 선택
+function selectAutocompleteItem(item) {
+    document.getElementById('q').value = item.key;
+    hideAutocomplete();
+    
+    // 검색 실행
+    document.querySelector('form').submit();
+}
+
+// HTML 이스케이프
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// 필터 프리셋 관리
+function saveCurrentFilter() {
+    const presetName = prompt('프리셋 이름을 입력하세요:');
+    if (!presetName) return;
+    
+    const filter = {
+        name: presetName,
+        q: document.getElementById('q').value,
+        system_type: document.getElementById('system_type').value,
+        object_type: document.getElementById('object_type').value,
+        timestamp: new Date().toISOString()
+    };
+    
+    const presets = getPresets();
+    presets.push(filter);
+    localStorage.setItem('filterPresets', JSON.stringify(presets));
+    
+    loadFilterPresets();
+    alert('필터가 저장되었습니다.');
+}
+
+function loadFilterPresets() {
+    const presets = getPresets();
+    const container = document.getElementById('preset-buttons');
+    const section = document.getElementById('filter-presets-section');
+    
+    if (presets.length === 0) {
+        section.style.display = 'none';
+        return;
+    }
+    
+    section.style.display = 'block';
+    container.innerHTML = '';
+    
+    presets.forEach((preset, index) => {
+        const btn = document.createElement('button');
+        btn.className = 'btn btn-sm btn-outline-secondary';
+        btn.textContent = preset.name;
+        btn.onclick = () => applyPreset(preset);
+        
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'btn btn-sm btn-outline-danger ms-1';
+        deleteBtn.innerHTML = '<i class="bi bi-x"></i>';
+        deleteBtn.onclick = (e) => {
+            e.stopPropagation();
+            deletePreset(index);
+        };
+        
+        const wrapper = document.createElement('div');
+        wrapper.className = 'd-inline-flex align-items-center';
+        wrapper.appendChild(btn);
+        wrapper.appendChild(deleteBtn);
+        container.appendChild(wrapper);
+    });
+}
+
+function applyPreset(preset) {
+    document.getElementById('q').value = preset.q || '';
+    document.getElementById('system_type').value = preset.system_type || '';
+    document.getElementById('object_type').value = preset.object_type || '';
+    document.querySelector('form').submit();
+}
+
+function deletePreset(index) {
+    if (!confirm('이 프리셋을 삭제하시겠습니까?')) return;
+    
+    const presets = getPresets();
+    presets.splice(index, 1);
+    localStorage.setItem('filterPresets', JSON.stringify(presets));
+    loadFilterPresets();
+}
+
+function clearAllPresets() {
+    if (!confirm('모든 프리셋을 삭제하시겠습니까?')) return;
+    localStorage.removeItem('filterPresets');
+    loadFilterPresets();
+}
+
+function getPresets() {
+    const stored = localStorage.getItem('filterPresets');
+    return stored ? JSON.parse(stored) : [];
+}
+
+// 활성 필터 표시
+function updateActiveFilters() {
+    const q = document.getElementById('q').value;
+    const systemType = document.getElementById('system_type').value;
+    const objectType = document.getElementById('object_type').value;
+    
+    const container = document.getElementById('filter-chips');
+    const section = document.getElementById('active-filters');
+    
+    container.innerHTML = '';
+    
+    if (q) {
+        container.appendChild(createFilterChip('키워드', q, 'q'));
+    }
+    if (systemType) {
+        container.appendChild(createFilterChip('시스템 타입', systemType, 'system_type'));
+    }
+    if (objectType) {
+        container.appendChild(createFilterChip('오브젝트 타입', objectType, 'object_type'));
+    }
+    
+    if (container.children.length > 0) {
+        section.style.display = 'block';
+    } else {
+        section.style.display = 'none';
+    }
+}
+
+function createFilterChip(label, value, field) {
+    const chip = document.createElement('span');
+    chip.className = 'badge bg-primary';
+    chip.innerHTML = `${label}: ${value} <button type="button" class="btn-close btn-close-white ms-1" onclick="removeFilter('${field}')"></button>`;
+    return chip;
+}
+
+function removeFilter(field) {
+    if (field === 'q') {
+        document.getElementById('q').value = '';
+    } else if (field === 'system_type') {
+        document.getElementById('system_type').value = '';
+    } else if (field === 'object_type') {
+        document.getElementById('object_type').value = '';
+    }
+    updateActiveFilters();
+    document.querySelector('form').submit();
+}
+
+// 필터 변경 시 활성 필터 업데이트
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form');
+    const inputs = form.querySelectorAll('input, select');
+    inputs.forEach(input => {
+        input.addEventListener('change', updateActiveFilters);
+    });
+});
+</script>
+<style>
+.autocomplete-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    background: white;
+    border: 2px solid var(--gray-200);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-xl);
+    max-height: 300px;
+    overflow-y: auto;
+    margin-top: 0.5rem;
+    backdrop-filter: blur(10px);
+}
+
+.autocomplete-dropdown .list-group-item {
+    cursor: pointer;
+    border: none;
+    border-bottom: 1px solid var(--gray-100);
+    padding: 0.75rem 1rem;
+    transition: all var(--transition-fast);
+}
+
+.autocomplete-dropdown .list-group-item:hover,
+.autocomplete-dropdown .list-group-item.active {
+    background: linear-gradient(135deg, var(--primary-50) 0%, #e0f2fe 100%);
+    border-left: 3px solid var(--primary-500);
+    padding-left: calc(1rem - 3px);
+}
+
+.autocomplete-dropdown .list-group-item:last-child {
+    border-bottom: none;
+}
+
+.position-relative {
+    position: relative;
+}
+@media (max-width: 768px) {
+    .table-responsive {
+        font-size: 0.9rem;
+    }
+    .table th, .table td {
+        padding: 0.5rem;
+    }
+    .table code {
+        font-size: 0.85em;
+    }
+}
+</style>
 {% endblock %}
 

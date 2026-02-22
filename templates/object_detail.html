@@ -2,6 +2,11 @@
 
 {% block title %}{{ object.name }} - APlan Integration Impact Map{% endblock %}
 
+{% block breadcrumb_items %}
+<li class="breadcrumb-item"><a href="/objects">검색</a></li>
+<li class="breadcrumb-item active">{{ object.name }}</li>
+{% endblock %}
+
 {% block content %}
 <div class="row">
     <!-- 좌측 패널: 기본 정보 -->
@@ -11,22 +16,42 @@
             <hr>
             
             <div class="info-row">
-                <div class="info-label">object_key</div>
+                <div class="info-label">
+                    object_key
+                    <span class="help-icon" data-bs-toggle="tooltip" title="업무상 유일키입니다">
+                        <i class="bi bi-question-circle"></i>
+                    </span>
+                </div>
                 <div><code>{{ object.object_key }}</code></div>
             </div>
             
             <div class="info-row">
-                <div class="info-label">system_type</div>
+                <div class="info-label">
+                    system_type
+                    <span class="help-icon" data-bs-toggle="tooltip" title="시스템 타입 (SAP, APLAN, BW 등)">
+                        <i class="bi bi-question-circle"></i>
+                    </span>
+                </div>
                 <div><span class="badge bg-secondary">{{ object.system_type }}</span></div>
             </div>
             
             <div class="info-row">
-                <div class="info-label">object_type</div>
+                <div class="info-label">
+                    object_type
+                    <span class="help-icon" data-bs-toggle="tooltip" title="오브젝트 타입 (IF, TABLE, VIEW 등)">
+                        <i class="bi bi-question-circle"></i>
+                    </span>
+                </div>
                 <div><span class="badge bg-info">{{ object.object_type }}</span></div>
             </div>
             
             <div class="info-row">
-                <div class="info-label">layer</div>
+                <div class="info-label">
+                    layer
+                    <span class="help-icon" data-bs-toggle="tooltip" title="레이어 (Legacy, API, In, Staging, Out 등)">
+                        <i class="bi bi-question-circle"></i>
+                    </span>
+                </div>
                 <div>{{ object.layer }}</div>
             </div>
             
@@ -38,6 +63,11 @@
             <div class="info-row">
                 <div class="info-label">owner_team</div>
                 <div>{{ object.owner_team or '-' }}</div>
+            </div>
+            
+            <div class="info-row">
+                <div class="info-label">owner</div>
+                <div>{{ object.owner or '-' }}</div>
             </div>
             
             <div class="info-row">
@@ -185,6 +215,7 @@
                             </select>
                             <button class="btn btn-sm btn-outline-info ms-2" onclick="fitNetwork()">전체 보기</button>
                             <button class="btn btn-sm btn-outline-secondary ms-2" onclick="togglePhysics()">물리 엔진 토글</button>
+                            <button class="btn btn-sm btn-outline-success ms-2" onclick="toggleLayerLayout()">레이어/플로우 정렬</button>
                         </div>
                         <div id="network-container" style="min-height: 500px;"></div>
                         <div class="network-info mt-3">
@@ -220,12 +251,130 @@
 {% endblock %}
 
 {% block extra_js %}
+<!-- Bootstrap Icons -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
 <script>
+// 툴팁 초기화
+document.addEventListener('DOMContentLoaded', function() {
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+});
+
 let network = null;
 let nodes = null;
 let edges = null;
 let physicsEnabled = true;
+let layerLayoutEnabled = false;
 const objectId = {{ object.id }};
+
+function normalize_tags(tags) {
+    if (!tags) return 'N/A';
+    return String(tags).trim() || 'N/A';
+}
+
+function normalize_layer(layer) {
+    if (!layer) return 'Unknown';
+    return String(layer).trim() || 'Unknown';
+}
+
+function applyLayerLayout() {
+    if (!network || !nodes) return;
+
+    const layerOrder = ['Legacy', 'API', 'Cust', 'In', 'Staging', 'Out', 'UI'];
+    const layerPositions = {};
+    layerOrder.forEach((layer, index) => {
+        layerPositions[layer] = { x: index * 220 - 660 };
+    });
+
+    // tags(플로우) 순서는 현재 노드에서 최초 등장 순
+    const seenTags = new Set();
+    const tagOrder = [];
+    nodes.forEach(function(node) {
+        const tags = normalize_tags(node.tags);
+        if (!seenTags.has(tags)) {
+            seenTags.add(tags);
+            tagOrder.push(tags);
+        }
+    });
+    if (tagOrder.length === 0) tagOrder.push('N/A');
+
+    const lanePositions = {};
+    const laneGap = 220;
+    const jitterGap = 70;
+    const laneCenterOffset = (tagOrder.length - 1) / 2;
+    tagOrder.forEach((tags, laneIndex) => {
+        lanePositions[tags] = { y: (laneIndex - laneCenterOffset) * laneGap };
+    });
+
+    const nodesByLaneLayerKey = {};
+    nodes.forEach(function(node) {
+        const layer = normalize_layer(node.layer);
+        const tags = normalize_tags(node.tags);
+        const key = `${tags}__${layer}`;
+        if (!nodesByLaneLayerKey[key]) nodesByLaneLayerKey[key] = [];
+        nodesByLaneLayerKey[key].push(node);
+    });
+
+    Object.values(nodesByLaneLayerKey).forEach(function(group) {
+        group.sort((a, b) => {
+            const aLabel = String(a.label || '');
+            const bLabel = String(b.label || '');
+            return aLabel.localeCompare(bLabel);
+        });
+    });
+
+    const updates = [];
+    nodes.forEach(function(node) {
+        const layer = normalize_layer(node.layer);
+        const tags = normalize_tags(node.tags);
+        const baseX = (layerPositions[layer] || { x: 0 }).x;
+        const baseY = (lanePositions[tags] || { y: 0 }).y;
+
+        const groupKey = `${tags}__${layer}`;
+        const groupNodes = nodesByLaneLayerKey[groupKey] || [node];
+        const nodeIndex = groupNodes.findIndex(n => n.id === node.id);
+        const localCenterOffset = (groupNodes.length - 1) / 2;
+        const y = baseY + (nodeIndex - localCenterOffset) * jitterGap;
+
+        updates.push({
+            id: node.id,
+            x: baseX,
+            y: y,
+            fixed: { x: true, y: false }
+        });
+    });
+
+    nodes.update(updates);
+
+    // 레이아웃 고정 시 physics 비활성화
+    network.setOptions({
+        physics: { enabled: false }
+    });
+    network.fit({ animation: true });
+}
+
+function toggleLayerLayout() {
+    layerLayoutEnabled = !layerLayoutEnabled;
+    if (!network || !nodes) return;
+
+    if (layerLayoutEnabled) {
+        applyLayerLayout();
+        return;
+    }
+
+    // 해제 시 고정 해제 + 기존 physics 상태로 복원
+    const updates = nodes.map(function(node) {
+        return { id: node.id, fixed: { x: false, y: false } };
+    });
+    nodes.update(updates);
+
+    network.setOptions({
+        physics: { enabled: physicsEnabled }
+    });
+    network.fit({ animation: true });
+}
 
 // 네트워크 로드
 async function loadNetwork() {
@@ -244,6 +393,11 @@ async function loadNetwork() {
             edges.clear();
             nodes.add(data.nodes);
             edges.add(data.edges);
+        }
+
+        // 레이어/플로우 정렬 모드가 켜져 있으면 리로드 후에도 배치 유지
+        if (layerLayoutEnabled) {
+            applyLayerLayout();
         }
         
         // 네트워크 옵션
@@ -317,6 +471,7 @@ async function loadNetwork() {
                 dragNodes: true,
                 dragView: true,
                 zoomView: true,
+                zoomSpeed: 0.1,  // 줌 속도 감소 (기본값 1.0)
                 hover: true,
                 tooltipDelay: 100,
                 selectConnectedEdges: true

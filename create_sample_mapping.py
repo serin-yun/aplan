@@ -93,6 +93,18 @@ objects_data = {
         'EAI 팀',
         'ERP 플랫폼서비스팀'
     ],
+    'owner': [
+        '홍길동',
+        '김철수',
+        '이영희',
+        '박민수',
+        '정수진',
+        '최영호',
+        '강미영',
+        '윤태호',
+        '임동욱',
+        '한지은'
+    ],
     'module': [
         '판매',
         'SD',
@@ -229,4 +241,6 @@ def create_sample_mapping():
 
 if __name__ == "__main__":
     create_sample_mapping()
+
+
 

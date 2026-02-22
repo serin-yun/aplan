@@ -1,0 +1,30 @@
+Sheets: 인터페이스, 담당자
+
+== 인터페이스 ==
+Rows: 52 Cols: 15
+     0     1               2        3                                        4        5        6           7            8                          9   10 11      12                       13                                    14
+   Type  항목ID          인터페이스명    프로그램명                                  프로그램 설명    TCODE    집계테이블      I/F테이블       LOG테이블                     I/F FM 시스템 모듈   IF ID          Aplan I/F Table                  Aplan STG Table(표준화)
+Inbound CP-01 자재마스터(영업조직: CP) ZSD80050                              자재마스터 정보 전송 ZSD80050 ZMDT8010         NaN     ZSDI8109       ZSD_SEND_MATERIAL_01 SAP SD SDI8362      ALIFCI_MTRL_MSTR_CP ALCDCM_MTRL_MSTR\nALCDCM_MTRL_MSTR_CP
+Inbound CP-02          거래처마스터 ZSD80040                               거래처 마스터 전송 ZSD80040 ZSDI8104         NaN     ZSDI8107       ZSD_SEND_CUSTOMER_01 SAP SD SDI8366         ALIFCI_PRTN_MSTR                      ALCDCM_PRTN_MSTR
+Inbound CP-10           자재 단가 ZSD29900                                   경로가 송신 ZSD29900      NaN         NaN     ZSDI8110     ZSD_SEND_CHANNEL_PRICE SAP SD SDI8363         ALIFCI_MTRL_UTPR                      ALCDCM_MTRL_UTPR
+Inbound SP-45 SP-45. 영업저장위치관리 ZSD06910                 [SD-SP] 영업저장위치관리         ZSD06910      NaN ZSDT6910_IF ZSDI6910_LOG      ZSD_IF_LGORT_VKORG_BM SAP SD SDI8352        ALIFCI_SALES_SLOC                     ALCDCM_SALES_SLOC
+Inbound SP-41  SP-41. 저장위치리스트 ZSD06920                  [SD-SP] 저장위치리스트         ZSD06920      NaN ZSDT6920_IF ZSDI6920_LOG       ZSD_IF_LGORT_LIST_BM SAP SD SDI8354         ALIFCI_INVN_SLOC                      ALCDCM_INVN_SLOC
+Inbound DP-53 DP-53.  신제품추정단가 ZSD06930                  [SD-SP] 신제품추정단가         ZSD06930      NaN ZSDT6930_IF ZSDI6930_LOG            ZSD_IF_CUSPR_BM SAP SD SDI8353 ALIFCI_NEW_PRD_ESTI_UTPR              ALCDCM_NEW_PRD_ESTI_UTPR
+Inbound SP-47       오픈SO(계획용) ZSD06950 [SD-SP] OPEN SO QTY 전송                   ZSD06950      NaN ZSDT6950_IF ZSDI6950_LOG        ZSD_SEND_OPEN_SO_BM SAP SD SDI8358      ALIFCI_OPEN_SAL_ORD                   ALCDCA_OPEN_SAL_ORD
+Inbound SP-48       판매처별 위탁재고 ZSD06960         [SD-SP] 판매처 위탁 재고 QTY 전송         ZSD06960      NaN ZSDT6960_IF ZSDI6960_LOG ZSD_SEND_CUSTOMER_STOCK_BM SAP SD SDI8359      ALIFCI_PRTN_TS_INVN                  ALICDCA_PRTN_TS_INVN
+Inbound CP-03             조직도 ZSD06970         [SD-SP] SD 조직도  I/F ( SAP -> BM) ZSD06970      NaN ZSDT6970_IF ZSDI6970_LOG         ZSD_SEND_ORG_BM_01 SAP SD SDI8361         ALIFCI_OGCH_MSTR                      ALCDCM_OGCH_MSTR
+Inbound CP-32      수출 진행 모니터링 ZSD06980               [SD-SP] 수출 진행 모니터링         ZSD06980      NaN ZSDT6980_IF ZSDI6980_LOG         ZSD_SEND_EXPORT_BM SAP SD SDI8367    ALIFCI_EXPO_PRGR_MONI                 ALCDCA_EXPO_PRGR_MONI
+Inbound CP-07        제품 허가 정보 ZSD06990                 [SD-SP] 제품 허가 정보         ZSD06990      NaN ZSDT6990_IF ZSDI6990_LOG    ZSD_SEND_CONFIRM_MAT_BM SAP SD SDI8364         ALIFCI_MTRL_WARR                      ALCDCM_MTRL_WARR
+
+== 담당자 ==
+Rows: 9 Cols: 2
+    0             1
+   모듈           담당자
+   SD      박광규, 허광무
+   PP      홍석준, 장춘자
+   SC      원은정, 장현우
+  NPD           김준용
+  IAM           박진호
+   BW      장현우, 원은정
+  EAI 이원민, 최종희, 이동우
+Aplan        BI매트릭스

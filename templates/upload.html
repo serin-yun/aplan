@@ -1,0 +1,533 @@
+{% extends "base.html" %}
+
+{% block title %}파일 업로드 - APlan Integration Impact Map{% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item"><a href="/dashboard">대시보드</a></li>
+<li class="breadcrumb-item active">파일 업로드</li>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .upload-area {
+        border: 2px dashed #007bff;
+        border-radius: var(--radius-md);
+        padding: 3rem 2rem;
+        text-align: center;
+        background: #f8f9fa;
+        transition: all var(--transition-base);
+        cursor: pointer;
+    }
+    .upload-area:hover {
+        background: #e7f3ff;
+        border-color: #0056b3;
+    }
+    .upload-area.dragover {
+        background: #cfe2ff;
+        border-color: #0056b3;
+    }
+    .upload-icon {
+        font-size: 3rem;
+        color: #007bff;
+        margin-bottom: 1rem;
+    }
+    .validation-result {
+        margin-top: 1rem;
+        padding: 1rem;
+        border-radius: var(--radius-md);
+        border-left: 3px solid;
+    }
+    .validation-result.success {
+        background: #d4edda;
+        border-left-color: #28a745;
+        color: #155724;
+    }
+    .validation-result.error {
+        background: #f8d7da;
+        border-left-color: #dc3545;
+        color: #721c24;
+    }
+    .validation-details {
+        margin-top: 15px;
+        padding: 15px;
+        background: white;
+        border-radius: 5px;
+        text-align: left;
+    }
+    .loading-spinner {
+        display: none;
+        text-align: center;
+        padding: 20px;
+    }
+    .file-info {
+        margin-top: 15px;
+        padding: 10px;
+        background: #e9ecef;
+        border-radius: 5px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2 class="mb-4">파일 업로드</h2>
+        
+        <!-- 현재 파일 상태 -->
+        {% if file_exists %}
+        <div class="alert alert-info">
+            <strong>현재 파일:</strong> mapping.xlsx가 존재합니다. 업로드하면 기존 파일을 덮어씁니다.
+        </div>
+        {% endif %}
+        
+        <!-- 업로드 영역 -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="upload-area" id="upload-area">
+                    <div class="upload-icon">📤</div>
+                    <h4>파일을 드래그 앤 드롭하거나 클릭하여 선택</h4>
+                    <p class="text-muted">엑셀 파일(.xlsx)을 업로드하세요</p>
+                    <input type="file" id="file-input" accept=".xlsx" style="display: none;">
+                    <button class="btn btn-primary mt-3" onclick="document.getElementById('file-input').click()">
+                        파일 선택
+                    </button>
+                </div>
+                
+                <div class="file-info" id="file-info" style="display: none;">
+                    <strong>선택된 파일:</strong> <span id="file-name"></span>
+                    <button class="btn btn-sm btn-outline-danger ms-2" onclick="clearFile()">취소</button>
+                </div>
+                
+                <!-- 검증 결과 -->
+                <div id="validation-result" class="validation-result" style="display: none;"></div>
+                
+                <!-- 로딩 스피너 -->
+                <div class="loading-spinner" id="loading-spinner">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">로딩 중...</span>
+                    </div>
+                    <p class="mt-2">파일을 처리하는 중...</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 업로드 버튼 -->
+        <div class="text-center mb-4">
+            <button class="btn btn-success btn-lg" id="upload-btn" onclick="uploadFile()" disabled>
+                파일 업로드 및 데이터 로딩
+            </button>
+            <button class="btn btn-outline-primary btn-lg ms-2" id="generate-btn" onclick="generateRelations()" disabled>
+                관계 자동 생성 후 다운로드
+            </button>
+        </div>
+
+        <!-- 정의서 기반 mapping 생성 -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">정의서(Inbound/Legacy)로 mapping.xlsx 자동 생성</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-3">
+                    <strong>Inbound.xlsx</strong>와 <strong>Legacy.xlsx</strong>를 업로드하면 objects/relations를 자동 생성한 mapping.xlsx를 다운로드합니다.
+                </p>
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Inbound.xlsx</label>
+                        <input type="file" class="form-control" id="inbound-definition-file" accept=".xlsx">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Legacy.xlsx</label>
+                        <input type="file" class="form-control" id="legacy-definition-file" accept=".xlsx">
+                    </div>
+                </div>
+
+                <div class="mt-3">
+                    <button class="btn btn-primary" id="generate-mapping-btn" onclick="generateMappingFromDefinition()" disabled>
+                        mapping.xlsx 생성 후 다운로드
+                    </button>
+                    <small class="text-muted ms-2">
+                        생성된 파일명: <code>mapping_from_definition.xlsx</code> (서버에는 <code>mapping.xlsx</code>로 저장)
+                    </small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Interface.xlsx 기반 mapping 생성 -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Interface.xlsx로 mapping.xlsx 자동 생성</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-3">
+                    <strong>Interface.xlsx</strong>를 업로드하면 objects/relations를 자동 생성한 mapping.xlsx를 다운로드합니다.
+                </p>
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Interface.xlsx</label>
+                        <input type="file" class="form-control" id="interface-definition-file" accept=".xlsx">
+                    </div>
+                </div>
+
+                <div class="mt-3">
+                    <button class="btn btn-primary" id="generate-interface-btn" onclick="generateMappingFromInterface()" disabled>
+                        mapping.xlsx 생성 후 다운로드
+                    </button>
+                    <small class="text-muted ms-2">
+                        생성된 파일명: <code>mapping_from_interface.xlsx</code> (서버에는 <code>mapping.xlsx</code>로 저장)
+                    </small>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 가이드 -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">업로드 가이드</h5>
+            </div>
+            <div class="card-body">
+                <h6>필수 요구사항:</h6>
+                <ul>
+                    <li>엑셀 파일(.xlsx) 형식이어야 합니다</li>
+                    <li><code>objects</code> 시트가 있어야 합니다</li>
+                    <li><code>relations</code> 시트가 있어야 합니다</li>
+                    <li>필수 컬럼이 모두 있어야 합니다</li>
+                </ul>
+                
+                <h6 class="mt-3">objects 시트 필수 컬럼:</h6>
+                <code>object_key, name, system_type, object_type, layer</code>
+                
+                <h6 class="mt-3">relations 시트 필수 컬럼:</h6>
+                <code>from_key, to_key</code>
+                
+                <div class="mt-3">
+                    <a href="/dashboard/guide" class="btn btn-outline-primary">상세 가이드 보기</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let selectedFile = null;
+let inboundDefinitionFile = null;
+let legacyDefinitionFile = null;
+let interfaceDefinitionFile = null;
+
+// 드래그 앤 드롭 이벤트
+const uploadArea = document.getElementById('upload-area');
+const fileInput = document.getElementById('file-input');
+
+uploadArea.addEventListener('click', () => {
+    fileInput.click();
+});
+
+uploadArea.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    uploadArea.classList.add('dragover');
+});
+
+uploadArea.addEventListener('dragleave', () => {
+    uploadArea.classList.remove('dragover');
+});
+
+uploadArea.addEventListener('drop', (e) => {
+    e.preventDefault();
+    uploadArea.classList.remove('dragover');
+    
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+        handleFileSelect(files[0]);
+    }
+});
+
+fileInput.addEventListener('change', (e) => {
+    if (e.target.files.length > 0) {
+        handleFileSelect(e.target.files[0]);
+    }
+});
+
+// 정의서 업로드
+document.getElementById('inbound-definition-file').addEventListener('change', (e) => {
+    inboundDefinitionFile = e.target.files.length > 0 ? e.target.files[0] : null;
+    updateGenerateMappingBtn();
+});
+document.getElementById('legacy-definition-file').addEventListener('change', (e) => {
+    legacyDefinitionFile = e.target.files.length > 0 ? e.target.files[0] : null;
+    updateGenerateMappingBtn();
+});
+
+document.getElementById('interface-definition-file').addEventListener('change', (e) => {
+    interfaceDefinitionFile = e.target.files.length > 0 ? e.target.files[0] : null;
+    updateGenerateInterfaceBtn();
+});
+
+function updateGenerateMappingBtn() {
+    const btn = document.getElementById('generate-mapping-btn');
+    btn.disabled = !(inboundDefinitionFile && legacyDefinitionFile);
+}
+
+function updateGenerateInterfaceBtn() {
+    const btn = document.getElementById('generate-interface-btn');
+    btn.disabled = !interfaceDefinitionFile;
+}
+
+function handleFileSelect(file) {
+    // 파일명 검증
+    if (!file.name.endsWith('.xlsx')) {
+        showValidationResult(false, ['엑셀 파일(.xlsx)만 업로드 가능합니다.']);
+        return;
+    }
+    
+    selectedFile = file;
+    document.getElementById('file-name').textContent = file.name;
+    document.getElementById('file-info').style.display = 'block';
+    document.getElementById('upload-btn').disabled = false;
+    
+    // 파일 검증
+    validateFile(file);
+}
+
+function clearFile() {
+    selectedFile = null;
+    fileInput.value = '';
+    document.getElementById('file-info').style.display = 'none';
+    document.getElementById('validation-result').style.display = 'none';
+    document.getElementById('upload-btn').disabled = true;
+    document.getElementById('generate-btn').disabled = true;
+}
+
+async function validateFile(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    document.getElementById('loading-spinner').style.display = 'block';
+    
+    try {
+        const response = await fetch('/upload/validate', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showValidationResult(true, ['파일 검증 성공!'], result.validation);
+            document.getElementById('upload-btn').disabled = false;
+            document.getElementById('generate-btn').disabled = false;
+        } else {
+            showValidationResult(false, result.errors, result.validation);
+            document.getElementById('upload-btn').disabled = true;
+            document.getElementById('generate-btn').disabled = true;
+        }
+    } catch (error) {
+        showValidationResult(false, ['검증 중 오류가 발생했습니다: ' + error.message]);
+        document.getElementById('upload-btn').disabled = true;
+    } finally {
+        document.getElementById('loading-spinner').style.display = 'none';
+    }
+}
+
+function showValidationResult(success, messages, validation = null) {
+    const resultDiv = document.getElementById('validation-result');
+    resultDiv.style.display = 'block';
+    resultDiv.className = 'validation-result ' + (success ? 'success' : 'error');
+    
+    let html = '<h5>' + (success ? '✓ 검증 성공' : '✗ 검증 실패') + '</h5>';
+    html += '<ul class="mb-0">';
+    messages.forEach(msg => {
+        html += '<li>' + msg + '</li>';
+    });
+    html += '</ul>';
+    
+    if (validation) {
+        html += '<div class="validation-details">';
+        html += '<h6>검증 상세:</h6>';
+        html += '<ul>';
+        html += '<li>objects 시트: ' + (validation.has_objects_sheet ? '✓' : '✗') + ' (' + validation.objects_count + '개 행)</li>';
+        html += '<li>relations 시트: ' + (validation.has_relations_sheet ? '✓' : '✗') + ' (' + validation.relations_count + '개 행)</li>';
+        if (validation.objects_columns.length > 0) {
+            html += '<li>objects 컬럼: ' + validation.objects_columns.join(', ') + '</li>';
+        }
+        if (validation.relations_columns.length > 0) {
+            html += '<li>relations 컬럼: ' + validation.relations_columns.join(', ') + '</li>';
+        }
+        html += '</ul>';
+        html += '</div>';
+    }
+    
+    resultDiv.innerHTML = html;
+}
+
+async function uploadFile() {
+    if (!selectedFile) {
+        alert('파일을 선택해주세요.');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+    
+    document.getElementById('loading-spinner').style.display = 'block';
+    document.getElementById('upload-btn').disabled = true;
+    
+    try {
+        const response = await fetch('/upload', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('파일 업로드 및 데이터 로딩이 완료되었습니다!\n\n' +
+                  '로딩된 오브젝트: ' + result.stats.objects_loaded + '개\n' +
+                  '로딩된 관계: ' + result.stats.relations_loaded + '개');
+            
+            // 대시보드로 이동
+            window.location.href = '/dashboard';
+        } else {
+            alert('업로드 실패:\n' + result.errors.join('\n'));
+            document.getElementById('upload-btn').disabled = false;
+        }
+    } catch (error) {
+        alert('업로드 중 오류가 발생했습니다: ' + error.message);
+        document.getElementById('upload-btn').disabled = false;
+    } finally {
+        document.getElementById('loading-spinner').style.display = 'none';
+    }
+}
+
+async function generateRelations() {
+    if (!selectedFile) {
+        alert('파일을 선택해주세요.');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+    
+    document.getElementById('loading-spinner').style.display = 'block';
+    document.getElementById('generate-btn').disabled = true;
+    
+    try {
+        const response = await fetch('/upload/generate-relations', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = selectedFile.name.replace('.xlsx', '_with_relations.xlsx');
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            a.remove();
+            alert('관계가 자동 생성된 파일이 다운로드됩니다.');
+        } else {
+            const result = await response.json();
+            alert('생성 실패:\n' + result.errors.join('\n'));
+        }
+    } catch (error) {
+        alert('처리 중 오류가 발생했습니다: ' + error.message);
+    } finally {
+        document.getElementById('loading-spinner').style.display = 'none';
+        document.getElementById('generate-btn').disabled = false;
+    }
+}
+
+async function generateMappingFromDefinition() {
+    if (!inboundDefinitionFile || !legacyDefinitionFile) {
+        alert('Inbound.xlsx와 Legacy.xlsx를 모두 선택해주세요.');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('inbound_file', inboundDefinitionFile);
+    formData.append('legacy_file', legacyDefinitionFile);
+
+    document.getElementById('loading-spinner').style.display = 'block';
+    document.getElementById('generate-mapping-btn').disabled = true;
+
+    try {
+        const response = await fetch('/upload/generate-mapping-from-definition', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (!response.ok) {
+            const result = await response.json();
+            alert('생성 실패:\\n' + (result.errors ? result.errors.join('\\n') : '알 수 없는 오류'));
+            return;
+        }
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'mapping_from_definition.xlsx';
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        a.remove();
+
+        alert('정의서 기반 mapping.xlsx 생성이 완료되었습니다.\n다운로드가 시작되며 서버에 mapping.xlsx로 저장됩니다.');
+    } catch (error) {
+        alert('처리 중 오류가 발생했습니다: ' + error.message);
+    } finally {
+        document.getElementById('loading-spinner').style.display = 'none';
+        updateGenerateMappingBtn();
+    }
+}
+
+async function generateMappingFromInterface() {
+    if (!interfaceDefinitionFile) {
+        alert('Interface.xlsx 파일을 선택해주세요.');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', interfaceDefinitionFile);
+
+    document.getElementById('loading-spinner').style.display = 'block';
+    document.getElementById('generate-interface-btn').disabled = true;
+
+    try {
+        const response = await fetch('/upload/generate-mapping-from-interface', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (!response.ok) {
+            const result = await response.json();
+            alert('생성 실패:\\n' + (result.errors ? result.errors.join('\\n') : '알 수 없는 오류'));
+            return;
+        }
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'mapping_from_interface.xlsx';
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        a.remove();
+
+        alert('Interface 기반 mapping.xlsx 생성이 완료되었습니다.\\n다운로드가 시작되며 서버에 mapping.xlsx로 저장됩니다.');
+    } catch (error) {
+        alert('처리 중 오류가 발생했습니다: ' + error.message);
+    } finally {
+        document.getElementById('loading-spinner').style.display = 'none';
+        updateGenerateInterfaceBtn();
+    }
+}
+</script>
+{% endblock %}
+

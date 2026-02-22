@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+
+{% block title %}사용 가이드 - APlan Integration Impact Map{% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item"><a href="/dashboard">대시보드</a></li>
+<li class="breadcrumb-item active">사용 가이드</li>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .accordion-button {
+        background: linear-gradient(135deg, var(--gray-50) 0%, var(--gray-100) 100%);
+        border: 1px solid var(--gray-200);
+        font-weight: 600;
+        color: var(--gray-800);
+    }
+    .accordion-button:not(.collapsed) {
+        background: linear-gradient(135deg, var(--primary-50) 0%, #e0f2fe 100%);
+        color: var(--primary-700);
+        border-color: var(--primary-300);
+    }
+    .accordion-button:focus {
+        box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+        border-color: var(--primary-500);
+    }
+    .accordion-body {
+        background: white;
+        border-top: 1px solid var(--gray-200);
+    }
+    table th {
+        background: linear-gradient(135deg, var(--gray-50) 0%, var(--gray-100) 100%);
+        font-weight: 600;
+        color: var(--gray-700);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2 class="mb-4">사용 가이드</h2>
+        
+        <!-- 프로세스 가이드 -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">5단계 프로세스</h5>
+            </div>
+            <div class="card-body">
+                <ol>
+                    <li class="mb-3">
+                        <strong>엑셀 파일 준비</strong>
+                        <p class="text-muted mb-0">mapping.xlsx 템플릿을 다운로드하거나 기존 파일을 준비합니다.</p>
+                    </li>
+                    <li class="mb-3">
+                        <strong>데이터 입력</strong>
+                        <p class="text-muted mb-0">objects 시트와 relations 시트에 데이터를 입력합니다.</p>
+                        <ul class="mt-2">
+                            <li><strong>objects 시트:</strong> 오브젝트 정보 (object_key, name, system_type, object_type, layer 등)</li>
+                            <li><strong>relations 시트:</strong> 오브젝트 간 관계 정보 (from_key, to_key 등)</li>
+                        </ul>
+                    </li>
+                    <li class="mb-3">
+                        <strong>데이터 로딩</strong>
+                        <p class="text-muted mb-0">웹 인터페이스에서 파일을 업로드하여 데이터베이스에 로딩합니다.</p>
+                    </li>
+                    <li class="mb-3">
+                        <strong>검색 및 탐색</strong>
+                        <p class="text-muted mb-0">오브젝트를 검색하고 상세 정보를 확인합니다.</p>
+                    </li>
+                    <li class="mb-3">
+                        <strong>전체 맵 보기</strong>
+                        <p class="text-muted mb-0">시스템 전체 구조를 시각적으로 확인합니다.</p>
+                    </li>
+                </ol>
+            </div>
+        </div>
+        
+        <!-- 파일 형식 가이드 -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">파일 형식 가이드</h5>
+            </div>
+            <div class="card-body">
+                <h6>objects 시트 필수 컬럼:</h6>
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>컬럼명</th>
+                            <th>설명</th>
+                            <th>예시</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>object_key</code></td>
+                            <td>업무상 유일키</td>
+                            <td>IF_APLAN_SALES_001</td>
+                        </tr>
+                        <tr>
+                            <td><code>name</code></td>
+                            <td>표시 이름</td>
+                            <td>APlan 매출 인터페이스</td>
+                        </tr>
+                        <tr>
+                            <td><code>system_type</code></td>
+                            <td>시스템 타입</td>
+                            <td>SAP, APLAN, BW, BI, EAI, IAM, NPD, CDP, LEGACY</td>
+                        </tr>
+                        <tr>
+                            <td><code>object_type</code></td>
+                            <td>오브젝트 타입</td>
+                            <td>IF, TABLE, VIEW, JOB, REPORT, UI</td>
+                        </tr>
+                        <tr>
+                            <td><code>layer</code></td>
+                            <td>레이어</td>
+                            <td>Legacy, API, Cust, In, Staging, Out, UI</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <h6 class="mt-4">relations 시트 필수 컬럼:</h6>
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>컬럼명</th>
+                            <th>설명</th>
+                            <th>예시</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>from_key</code></td>
+                            <td>출발 오브젝트의 object_key</td>
+                            <td>SAP_VBRP</td>
+                        </tr>
+                        <tr>
+                            <td><code>to_key</code></td>
+                            <td>도착 오브젝트의 object_key</td>
+                            <td>IF_APLAN_SALES_001</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <div class="mt-3">
+                    <a href="/static/MAPPING_FILE_FORMAT.md" class="btn btn-outline-primary" download>
+                        상세 문서 다운로드
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- FAQ -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">자주 묻는 질문 (FAQ)</h5>
+            </div>
+            <div class="card-body">
+                <div class="accordion" id="faqAccordion">
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#faq1">
+                                파일명은 반드시 mapping.xlsx여야 하나요?
+                            </button>
+                        </h2>
+                        <div id="faq1" class="accordion-collapse collapse show" data-bs-parent="#faqAccordion">
+                            <div class="accordion-body">
+                                네, 파일명은 반드시 <code>mapping.xlsx</code>여야 합니다. 다른 이름으로 저장하면 업로드 시 오류가 발생합니다.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq2">
+                                시트명은 대소문자를 구분하나요?
+                            </button>
+                        </h2>
+                        <div id="faq2" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                            <div class="accordion-body">
+                                네, 시트명은 정확히 <code>objects</code>와 <code>relations</code>이어야 합니다. 대소문자를 구분합니다.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq3">
+                                object_key가 중복되면 어떻게 되나요?
+                            </button>
+                        </h2>
+                        <div id="faq3" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                            <div class="accordion-body">
+                                object_key는 유일해야 합니다. 중복된 경우 업로드 전 검증 단계에서 오류가 발생합니다.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq4">
+                                relations의 from_key와 to_key는 어디에 정의되어야 하나요?
+                            </button>
+                        </h2>
+                        <div id="faq4" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                            <div class="accordion-body">
+                                relations 시트의 from_key와 to_key는 반드시 objects 시트에 존재하는 object_key 값이어야 합니다. 존재하지 않는 경우 해당 관계는 스킵됩니다.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 추가 도움말 -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">추가 도움말</h5>
+            </div>
+            <div class="card-body">
+                <p>더 자세한 내용은 다음 문서를 참고하세요:</p>
+                <ul>
+                    <li><a href="/static/MAPPING_FILE_FORMAT.md" target="_blank">엑셀 파일 양식 가이드</a></li>
+                    <li><a href="/static/QUICK_TEST_GUIDE.md" target="_blank">빠른 테스트 가이드</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

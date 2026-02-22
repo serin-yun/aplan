@@ -62,6 +62,8 @@ class NetworkNode(BaseModel):
     label: str
     title: str
     group: str
+    layer: Optional[str] = None
+    tags: Optional[str] = None
     color: Optional[dict] = None
     shape: Optional[str] = "box"
     font: Optional[dict] = None
@@ -183,6 +185,47 @@ async def get_objects_api(
     return objects
 
 
+@router.get("/api/autocomplete")
+async def autocomplete(
+    q: str = Query(..., min_length=1, description="검색어 (최소 1자)"),
+    limit: int = Query(10, ge=1, le=20, description="최대 결과 수"),
+    session: Session = Depends(get_session)
+):
+    """
+    자동완성 API
+    
+    object_key와 name을 기반으로 빠른 검색 제안을 제공합니다.
+    """
+    search_term = f"%{q}%"
+    statement = select(
+        IntegrationObject.object_key,
+        IntegrationObject.name,
+        IntegrationObject.id,
+        IntegrationObject.system_type,
+        IntegrationObject.object_type
+    ).where(
+        IntegrationObject.status == "ACTIVE",
+        or_(
+            IntegrationObject.object_key.ilike(search_term),
+            IntegrationObject.name.ilike(search_term)
+        )
+    ).order_by(IntegrationObject.object_key).limit(limit)
+    
+    results = session.exec(statement).all()
+    
+    return [
+        {
+            "id": r.id,
+            "key": r.object_key,
+            "name": r.name,
+            "system_type": r.system_type,
+            "object_type": r.object_type,
+            "display": f"{r.object_key} - {r.name}"
+        }
+        for r in results
+    ]
+
+
 @router.get("/overview", response_class=HTMLResponse, include_in_schema=False)
 async def get_overview_map(
     request: Request,
@@ -244,7 +287,7 @@ async def get_object_html(
     if not obj:
         raise HTTPException(status_code=404, detail=f"오브젝트 ID {object_id}를 찾을 수 없습니다")
     
-    # 영향도 정보 조회
+        # 영향도 정보 조회
     try:
         graph = get_impact_graph(session, object_id, depth)
         
@@ -261,6 +304,7 @@ async def get_object_html(
                 "module": obj.module,
                 "status": obj.status,
                 "owner_team": obj.owner_team,
+                "owner": obj.owner,
                 "environment": obj.environment,
                 "tags": obj.tags
             }
@@ -338,6 +382,7 @@ async def get_object_impact(
                 "module": obj.module,
                 "status": obj.status,
                 "owner_team": obj.owner_team,
+                "owner": obj.owner,
                 "environment": obj.environment,
                 "tags": obj.tags
             }
@@ -376,6 +421,7 @@ async def get_overview_network(
     system_type: Optional[str] = Query(None, description="시스템 타입 필터"),
     layer: Optional[str] = Query(None, description="레이어 필터"),
     module: Optional[str] = Query(None, description="모듈 필터"),
+    max_nodes: Optional[int] = Query(None, ge=20, le=5000, description="표시할 최대 노드 수 (연결도 기준 상위)"),
     session: Session = Depends(get_session)
 ):
     """
@@ -424,10 +470,30 @@ async def get_overview_network(
     ]
     
     # 각 노드의 연결도 계산 (연결된 엣지 수)
-    node_degrees = {}
-    for rel in filtered_relations:
-        node_degrees[rel.from_object_id] = node_degrees.get(rel.from_object_id, 0) + 1
-        node_degrees[rel.to_object_id] = node_degrees.get(rel.to_object_id, 0) + 1
+    def compute_node_degrees(relations: list[IntegrationRelation]) -> dict[int, int]:
+        degrees: dict[int, int] = {}
+        for rel in relations:
+            degrees[rel.from_object_id] = degrees.get(rel.from_object_id, 0) + 1
+            degrees[rel.to_object_id] = degrees.get(rel.to_object_id, 0) + 1
+        return degrees
+
+    node_degrees = compute_node_degrees(filtered_relations)
+
+    total_nodes_all = len(objects)
+    total_edges_all = len(filtered_relations)
+
+    if max_nodes and total_nodes_all > max_nodes:
+        objects_sorted = sorted(
+            objects,
+            key=lambda obj: (-node_degrees.get(obj.id, 0), obj.object_key),
+        )
+        selected_ids = {obj.id for obj in objects_sorted[:max_nodes]}
+        objects = [obj for obj in objects if obj.id in selected_ids]
+        filtered_relations = [
+            rel for rel in filtered_relations
+            if rel.from_object_id in selected_ids and rel.to_object_id in selected_ids
+        ]
+        node_degrees = compute_node_degrees(filtered_relations)
     
     # 노드 생성
     nodes = []
@@ -441,8 +507,10 @@ async def get_overview_network(
         nodes.append(NetworkNode(
             id=obj.id,
             label=f"{obj.name}\n[{obj.system_type}]",
-            title=f"object_key: {obj.object_key}\n이름: {obj.name}\n시스템: {obj.system_type}\n타입: {obj.object_type}\n레이어: {obj.layer}\n모듈: {obj.module or 'N/A'}\n설명: {obj.description or 'N/A'}\n연결 수: {degree}개",
+            title=f"object_key: {obj.object_key}\n이름: {obj.name}\n시스템: {obj.system_type}\n타입: {obj.object_type}\n레이어: {obj.layer}\n모듈: {obj.module or 'N/A'}\n담당팀: {obj.owner_team or 'N/A'}\n담당자: {obj.owner or 'N/A'}\n설명: {obj.description or 'N/A'}\n연결 수: {degree}개",
             group=obj.system_type,
+            layer=obj.layer,
+            tags=obj.tags,
             color=color,
             shape="box",
             font={"size": 16, "color": "#212121", "face": "Arial", "bold": True},  # 파스텔 톤에 맞게 어두운 텍스트
@@ -474,6 +542,8 @@ async def get_overview_network(
     stats = {
         "total_nodes": len(nodes),
         "total_edges": len(edges),
+        "total_nodes_all": total_nodes_all,
+        "total_edges_all": total_edges_all,
         "system_types": {}
     }
     
@@ -587,8 +657,10 @@ async def get_object_network(
         nodes.append(NetworkNode(
             id=obj.id,
             label=f"{obj.name}\n[{obj.system_type}]",
-            title=f"object_key: {obj.object_key}\n이름: {obj.name}\n시스템: {obj.system_type}\n타입: {obj.object_type}\n레이어: {obj.layer}\n모듈: {obj.module or 'N/A'}\n설명: {obj.description or 'N/A'}\n연결 수: {degree}개",
+            title=f"object_key: {obj.object_key}\n이름: {obj.name}\n시스템: {obj.system_type}\n타입: {obj.object_type}\n레이어: {obj.layer}\n모듈: {obj.module or 'N/A'}\n담당팀: {obj.owner_team or 'N/A'}\n담당자: {obj.owner or 'N/A'}\n설명: {obj.description or 'N/A'}\n연결 수: {degree}개",
             group=obj.system_type,
+            layer=obj.layer,
+            tags=obj.tags,
             color=color,
             shape="box",
             font={"size": 16, "color": "#212121", "face": "Arial", "bold": True},  # 파스텔 톤에 맞게 어두운 텍스트
