@@ -62,15 +62,15 @@
                         <div class="step-card" data-step="{{ loop.index0 }}"
                              data-title="{{ stage.title }}"
                              data-description="{{ stage.description }}"
-                             data-items="{{ stage.items | join(' | ') }}">
+                                 data-items="{{ stage['items'] | join(' | ') }}">
                             <div class="d-flex justify-content-between align-items-start">
                                 <h6 class="mb-1">{{ stage.title }}</h6>
                                 <span class="badge bg-light text-dark">STEP {{ loop.index }}</span>
                             </div>
                             <div class="text-muted small mb-2">{{ stage.description }}</div>
-                            {% if stage.items %}
+                            {% if stage['items'] %}
                             <ul class="mb-0 small">
-                                {% for item in stage.items %}
+                                {% for item in stage['items'] %}
                                 <li>{{ item }}</li>
                                 {% endfor %}
                             </ul>

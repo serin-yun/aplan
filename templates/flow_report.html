@@ -55,8 +55,8 @@
                                     <span class="badge bg-light text-dark">STEP {{ loop.index }}</span>
                                 </div>
                                 <div class="text-muted small mb-2">{{ stage.description }}</div>
-                                {% if stage.items %}
-                                <div class="small">{{ stage.items | join(", ") }}</div>
+                                {% if stage['items'] %}
+                                <div class="small">{{ stage['items'] | join(", ") }}</div>
                                 {% else %}
                                 <div class="text-muted small">표시할 항목이 없습니다.</div>
                                 {% endif %}
