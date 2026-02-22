@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Flow 목록 - APlan Integration Impact Map{% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item"><a href="/objects/overview?view={{ view_mode }}">전체 맵</a></li>
+<li class="breadcrumb-item active">Flow 목록</li>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+            <h2 class="mb-0">Flow 목록</h2>
+            {% if primary_flow_key %}
+            <a href="/flows/{{ primary_flow_key | urlencode }}?view={{ view_mode }}" class="btn btn-sm btn-primary">PRIMARY FLOW 바로가기</a>
+            {% endif %}
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-body">
+                <form method="get" action="/flows">
+                    <input type="hidden" name="view" value="{{ view_mode }}">
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <input type="text" class="form-control" name="q" placeholder="인터페이스명/항목ID/IF ID/테이블 검색" value="{{ q or '' }}">
+                        </div>
+                        <div class="col-md-3">
+                            <input type="text" class="form-control" name="system_type" placeholder="시스템 타입" value="{{ system_type or '' }}">
+                        </div>
+                        <div class="col-md-3">
+                            <input type="text" class="form-control" name="module" placeholder="모듈" value="{{ module or '' }}">
+                        </div>
+                        <div class="col-12 d-flex gap-2">
+                            <button class="btn btn-primary btn-sm" type="submit">검색</button>
+                            <a class="btn btn-outline-secondary btn-sm" href="/flows?view={{ view_mode }}">초기화</a>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="row g-3">
+            {% for flow in cards %}
+            <div class="col-md-6 col-xl-4">
+                <div class="card h-100">
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex justify-content-between align-items-start gap-2">
+                            <h6 class="mb-1">{{ flow.interface_name }}</h6>
+                            {% if flow.flow_key == primary_flow_key %}
+                            <span class="badge bg-primary">PRIMARY</span>
+                            {% endif %}
+                        </div>
+                        <div class="text-muted small mb-2">{{ flow.program_description or "설명이 없습니다." }}</div>
+                        <div class="small mb-2">
+                            <div><strong>시스템</strong> {{ flow.system_type or "-" }}</div>
+                            <div><strong>모듈</strong> {{ flow.module or "-" }}</div>
+                        </div>
+                        <div class="small text-muted mb-3">
+                            {% if flow.stg_tables %}
+                            STG: {{ flow.stg_tables | join(", ") }}
+                            {% else %}
+                            STG 정보 없음
+                            {% endif %}
+                        </div>
+                        <div class="mt-auto">
+                            <a href="/flows/{{ flow.flow_key | urlencode }}?view={{ view_mode }}" class="btn btn-sm btn-primary">Flow 보기</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -15,7 +15,7 @@ from fastapi.templating import Jinja2Templates
 from pathlib import Path
 
 from app.database import init_db
-from app.routers import objects, dashboard, upload, overview_api, flows
+from app.routers import objects, dashboard, upload, overview_api, flows, flow_api
 
 # FastAPI 앱 인스턴스 생성
 app = FastAPI(
@@ -46,6 +46,7 @@ app.include_router(dashboard.router, tags=["dashboard"])
 app.include_router(upload.router, tags=["upload"])
 app.include_router(overview_api.router, tags=["overview"])
 app.include_router(flows.router, tags=["flows"])
+app.include_router(flow_api.router, tags=["flows"])
 
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)

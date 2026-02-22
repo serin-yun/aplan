@@ -34,6 +34,9 @@ uvicorn app.main:app --reload
 - **전체 맵(요약/리더)**: http://localhost:8000/objects/overview?view=leader
 - **전체 맵(요약/운영)**: http://localhost:8000/objects/overview?view=ops
 - **전체 맵(전수)**: http://localhost:8000/objects/overview?mode=full&view=ops
+- **Flow 목록**: http://localhost:8000/flows?view=business
+- **Flow 상세**: http://localhost:8000/flows/{flow_key}?view=business
+- **Flow 리포트**: http://localhost:8000/flows/{flow_key}/report?view=leader
 - **API 문서**: http://localhost:8000/docs
 
 ## ✅ 커밋 1 검증 시나리오
@@ -41,6 +44,18 @@ uvicorn app.main:app --reload
 - http://localhost:8000/objects/overview?view=business 접속 → 전수 그래프 없이 요약 지도 + 카드만 노출
 - 상단 PRIMARY FLOW 버튼 또는 첫 카드 클릭 → `/flows/{flow_key}?view=business`로 이동
 - http://localhost:8000/objects/overview?mode=full&view=ops 접속 → 기존 전수 맵 유지
+
+## ✅ 커밋 2 검증 시나리오
+
+- http://localhost:8000/flows/{flow_key}?view=business 접속 → Stepper 중심 화면으로 흐름 이해
+- http://localhost:8000/flows/{flow_key}/report?view=leader 접속 → 1페이지 인쇄/PDF 저장 가능
+- http://localhost:8000/flows/{flow_key}?view=ops 접속 → 운영 정보 기본 ON 확인
+
+## 👥 사용자별 추천 사용 시나리오
+
+- 현업: overview → 카드 클릭 → stepper 확인
+- 리더: overview → report 인쇄/PDF
+- 운영/PM: flow 상세에서 운영정보 ON → 기술 확인
 
 ## 📋 기술 스택
 
