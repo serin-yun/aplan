@@ -220,3 +220,66 @@ def filter_flow_cards(*, cards: list[dict], q: str | None, system_type: str | No
     return filtered
 
 
+def build_flow_graph(*, flow_key: str, objects: list[IntegrationObject]) -> dict:
+    groups = build_flow_groups(objects)
+    source_system = choose_most_common([obj.system_type for obj in objects if obj.layer == "Legacy"])
+    source_label = f"{source_system or 'Source'}"
+
+    nodes: list[dict] = []
+    edges: list[dict] = []
+
+    def add_node(node_id: str, label: str, group: str, level: int, shape: str = "box") -> None:
+        nodes.append(
+            {
+                "id": node_id,
+                "label": label,
+                "group": group,
+                "level": level,
+                "shape": shape,
+            }
+        )
+
+    def add_edge(from_id: str, to_id: str, dashes: bool = False) -> None:
+        edges.append({"from": from_id, "to": to_id, "arrows": "to", "dashes": dashes})
+
+    source_id = f"spine:source:{flow_key}"
+    transfer_id = f"spine:transfer:{flow_key}"
+    aplan_id = f"spine:aplan:{flow_key}"
+
+    add_node(source_id, source_label, "spine", 0, "ellipse")
+    add_node(transfer_id, "Transfer", "spine", 1, "ellipse")
+    add_node(aplan_id, "APlan I/F", "spine", 2, "ellipse")
+    add_edge(source_id, transfer_id)
+    add_edge(transfer_id, aplan_id)
+
+    stg_tables = collect_unique_names(groups["stg_tables"])
+    if not stg_tables:
+        stg_tables = ["STG"]
+    for idx, table in enumerate(stg_tables):
+        stg_id = f"spine:stg:{idx}:{flow_key}"
+        add_node(stg_id, table, "spine", 3, "box")
+        add_edge(aplan_id, stg_id)
+
+    for program in collect_unique_names(groups["legacy_jobs"]):
+        node_id = f"sat:legacy_job:{program}"
+        add_node(node_id, program, "legacy", 0, "box")
+        add_edge(node_id, source_id, dashes=True)
+
+    for table in collect_unique_names(groups["legacy_tables"]):
+        node_id = f"sat:legacy_table:{table}"
+        add_node(node_id, table, "legacy", 0, "box")
+        add_edge(node_id, source_id, dashes=True)
+
+    for table in collect_unique_names(groups["transfer_tables"]):
+        node_id = f"sat:transfer:{table}"
+        add_node(node_id, table, "transfer", 1, "box")
+        add_edge(transfer_id, node_id, dashes=True)
+
+    for table in collect_unique_names(groups["aplan_if_tables"]):
+        node_id = f"sat:aplan_if:{table}"
+        add_node(node_id, table, "aplan", 2, "box")
+        add_edge(aplan_id, node_id, dashes=True)
+
+    return {"nodes": nodes, "edges": edges}
+
+

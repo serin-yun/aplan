@@ -51,6 +51,21 @@ uvicorn app.main:app --reload
 - http://localhost:8000/flows/{flow_key}/report?view=leader 접속 → 1페이지 인쇄/PDF 저장 가능
 - http://localhost:8000/flows/{flow_key}?view=ops 접속 → 운영 정보 기본 ON 확인
 
+## ✅ 커밋 3 검증 시나리오
+
+- http://localhost:8000/flows/{flow_key}?view=ops 접속 → 그래프 기본 ON + Spine 레이아웃 확인
+- business/leader 뷰에서는 그래프 기본 OFF 확인
+- Stepper/그래프 클릭 시 우측 상세 패널에서 운영 정보 확인
+
+## 🎯 대표 데모 URL
+
+- http://localhost:8000/objects/overview?view=business
+- http://localhost:8000/objects/overview?view=leader
+- http://localhost:8000/objects/overview?view=ops
+- http://localhost:8000/flows/{primary_flow_key}?view=business
+- http://localhost:8000/flows/{primary_flow_key}/report?view=leader
+- http://localhost:8000/flows/{primary_flow_key}?view=ops
+
 ## 👥 사용자별 추천 사용 시나리오
 
 - 현업: overview → 카드 클릭 → stepper 확인
