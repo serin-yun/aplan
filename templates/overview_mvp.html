@@ -1,0 +1,1112 @@
+{% extends "base.html" %}
+
+{% block title %}APlan 연계 메타데이터 - APlan Integration Impact Map{% endblock %}
+
+{% block breadcrumb_items %}
+<li class="breadcrumb-item"><a href="/objects">검색</a></li>
+<li class="breadcrumb-item active">APlan 연계 메타데이터</li>
+{% endblock %}
+
+{% block extra_css %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+    .aplan-topbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        align-items: center;
+        padding: 1rem 1.25rem;
+        background: #ffffff;
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-sm);
+        margin-bottom: 1rem;
+    }
+    .aplan-topbar .search-group {
+        flex: 1 1 320px;
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+    }
+    .aplan-topbar .mode-group {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+    .aplan-workspace {
+        display: grid;
+        grid-template-columns: 220px minmax(0, 1fr) 280px;
+        gap: 1rem;
+    }
+    .aplan-panel {
+        background: #ffffff;
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-sm);
+        border: 1px solid var(--gray-200);
+        padding: 1rem;
+    }
+    .aplan-panel h6 {
+        font-weight: 600;
+        margin-bottom: 0.75rem;
+    }
+    .filter-section + .filter-section {
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px dashed var(--gray-200);
+    }
+    .graph-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        align-items: center;
+        margin-bottom: 0.75rem;
+    }
+    #aplan-network {
+        width: 100%;
+        height: 860px;
+        border-radius: var(--radius-md);
+        border: 1px solid var(--gray-200);
+        background: #f8fafc;
+    }
+    .detail-tabs .nav-link {
+        padding: 0.5rem 0.75rem;
+    }
+    .detail-list {
+        font-size: 0.875rem;
+        color: var(--gray-700);
+    }
+    .impact-highlight {
+        background: var(--primary-50);
+        padding: 0.5rem;
+        border-radius: var(--radius);
+        margin-bottom: 0.5rem;
+    }
+    .executive-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    .exec-card {
+        background: #ffffff;
+        border: 1px solid var(--gray-200);
+        border-radius: var(--radius-md);
+        padding: 1rem;
+        box-shadow: var(--shadow-sm);
+    }
+    .exec-card .value {
+        font-size: 1.75rem;
+        font-weight: 700;
+    }
+    .exec-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+        gap: 1rem;
+    }
+    .exec-charts {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 1rem;
+    }
+    .risk-list li {
+        margin-bottom: 0.4rem;
+    }
+    .summary-flow {
+        min-height: 260px;
+        border: 1px dashed var(--gray-200);
+        border-radius: var(--radius-md);
+        padding: 0.75rem;
+        background: #f9fafb;
+    }
+    .detail-table {
+        max-height: 320px;
+        overflow: auto;
+    }
+    .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        background: var(--primary-50);
+        color: var(--primary-700);
+        border-radius: 999px;
+        padding: 0.25rem 0.6rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        margin-right: 0.35rem;
+        margin-bottom: 0.35rem;
+    }
+    .chip button {
+        border: none;
+        background: transparent;
+        color: inherit;
+        font-size: 0.75rem;
+        line-height: 1;
+        cursor: pointer;
+    }
+    @media (max-width: 1200px) {
+        .aplan-workspace {
+            grid-template-columns: 1fr;
+        }
+        #aplan-network {
+            height: 640px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="aplan-topbar">
+    <div class="search-group">
+        <input id="global-search" class="form-control" placeholder="검색: 인터페이스명, 항목ID, IF ID, 테이블, 프로그램" />
+        <button class="btn btn-primary" onclick="handleSearch()">검색</button>
+        <button class="btn btn-outline-secondary" onclick="clearSearch()">해제</button>
+    </div>
+    <div class="mode-group">
+        <a class="btn btn{% if view_mode == 'executive' %}-primary{% else %}-outline-primary{% endif %}" href="/objects/overview?view=executive">보고용</a>
+        <a class="btn btn{% if view_mode == 'business' %}-primary{% else %}-outline-primary{% endif %}" href="/objects/overview?view=business">업무흐름</a>
+        <a class="btn btn{% if view_mode == 'ops' %}-primary{% else %}-outline-primary{% endif %}" href="/objects/overview?view=ops">운영분석</a>
+    </div>
+    <div class="mode-group">
+        <button class="btn btn-outline-info" onclick="toggleImpact()">Impact 모드</button>
+        <select id="impact-depth" class="form-select" style="width: auto;" onchange="applyImpactDepth()">
+            <option value="1">Depth 1</option>
+            <option value="2" selected>Depth 2</option>
+            <option value="3">Depth 3</option>
+            <option value="0">전체</option>
+        </select>
+        <button class="btn btn-outline-success" onclick="exportPng()">PNG</button>
+        <button class="btn btn-outline-secondary" onclick="exportImpactCsv()">Impact CSV</button>
+    </div>
+</div>
+
+<div id="executive-view" class="{% if view_mode != 'executive' %}d-none{% endif %}">
+    <div class="executive-grid" id="kpi-cards">
+        <div class="exec-card">
+            <div class="text-muted">Total Interfaces</div>
+            <div class="value" id="kpi-total-interfaces">-</div>
+        </div>
+        <div class="exec-card">
+            <div class="text-muted">Total Systems</div>
+            <div class="value" id="kpi-total-systems">-</div>
+        </div>
+        <div class="exec-card">
+            <div class="text-muted">Unique Target STG</div>
+            <div class="value" id="kpi-unique-stg">-</div>
+        </div>
+        <div class="exec-card">
+            <div class="text-muted">Failures/Delays</div>
+            <div class="value" id="kpi-failures">-</div>
+        </div>
+    </div>
+
+    <div class="exec-layout">
+        <div class="aplan-panel">
+            <h6>분포 요약</h6>
+            <div class="exec-charts">
+                <div>
+                    <canvas id="chart-system"></canvas>
+                </div>
+                <div>
+                    <canvas id="chart-prefix"></canvas>
+                </div>
+                <div>
+                    <canvas id="chart-stg"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="aplan-panel">
+            <h6>Risk TOP 5</h6>
+            <ul class="risk-list" id="risk-list"></ul>
+        </div>
+    </div>
+
+    <div class="aplan-panel mt-3">
+        <h6>Summary Flow Mini-map</h6>
+        <div class="summary-flow" id="summary-flow"></div>
+    </div>
+
+    <div class="aplan-panel mt-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="mb-0">Detail Table</h6>
+            <button class="btn btn-sm btn-outline-secondary" onclick="exportExecutiveCsv()">CSV 다운로드</button>
+        </div>
+        <div class="detail-table">
+            <table class="table table-sm table-hover">
+                <thead>
+                    <tr>
+                        <th>항목ID</th>
+                        <th>인터페이스명</th>
+                        <th>시스템</th>
+                        <th>모듈</th>
+                        <th>APlan IF</th>
+                        <th>APlan STG</th>
+                        <th>Type</th>
+                        <th>Fan-in</th>
+                    </tr>
+                </thead>
+                <tbody id="executive-detail-body"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div id="workspace-view" class="{% if view_mode == 'executive' %}d-none{% endif %}">
+    <div class="aplan-workspace">
+        <aside class="aplan-panel">
+            <h6>필터</h6>
+            <div class="filter-section">
+                <label class="form-label">시스템</label>
+                <select id="filter-system" class="form-select"></select>
+            </div>
+            <div class="filter-section">
+                <label class="form-label">모듈</label>
+                <select id="filter-module" class="form-select"></select>
+            </div>
+            <div class="filter-section">
+                <label class="form-label">영역 Prefix</label>
+                <select id="filter-prefix" class="form-select"></select>
+            </div>
+            <div class="filter-section">
+                <label class="form-label">STG 타입</label>
+                <select id="filter-stg-type" class="form-select"></select>
+            </div>
+            <div class="filter-section">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="filter-update-only">
+                    <label class="form-check-label" for="filter-update-only">Update Only</label>
+                </div>
+            </div>
+            <div class="filter-section">
+                <h6 class="mb-2">그룹 접기/펼치기</h6>
+                <div class="small text-muted mb-2">시스템 / CP-SP-DP</div>
+                <div id="group-chips"></div>
+            </div>
+            <div class="filter-section">
+                <button class="btn btn-outline-secondary w-100" onclick="resetFilters()">필터 초기화</button>
+            </div>
+        </aside>
+
+        <main class="aplan-panel">
+            <div class="graph-toolbar">
+                <button class="btn btn-sm btn-outline-primary" onclick="fitNetwork()">포커스</button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="togglePhysics()">레이아웃 토글</button>
+                <button class="btn btn-sm btn-outline-info" onclick="toggleBundling()">Fan-in 번들</button>
+            <button class="btn btn-sm btn-outline-success" onclick="toggleFlowLayout()">플로우 정렬</button>
+            <button class="btn btn-sm btn-outline-dark" onclick="clearFlowFocus()">전체 보기</button>
+            <button class="btn btn-sm btn-outline-primary" onclick="zoomIn()">줌인</button>
+            <button class="btn btn-sm btn-outline-primary" onclick="zoomOut()">줌아웃</button>
+                <div class="text-muted small" id="graph-stats"></div>
+            </div>
+            <div id="aplan-network"></div>
+        </main>
+
+        <aside class="aplan-panel">
+            <ul class="nav nav-tabs detail-tabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#detail-business" type="button" role="tab">업무</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#detail-tech" type="button" role="tab">기술</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#detail-ops" type="button" role="tab">운영</button>
+                </li>
+            </ul>
+            <div class="tab-content mt-3">
+                <div class="tab-pane fade show active" id="detail-business" role="tabpanel">
+                    <div class="detail-list" id="business-detail">노드를 선택하세요.</div>
+                </div>
+                <div class="tab-pane fade" id="detail-tech" role="tabpanel">
+                    <div class="detail-list" id="tech-detail">운영분석 모드에서 확장됩니다.</div>
+                </div>
+                <div class="tab-pane fade" id="detail-ops" role="tabpanel">
+                    <div class="detail-list" id="ops-detail">Impact 결과가 표시됩니다.</div>
+                    <div class="mt-3">
+                        <h6>Impact 리스트</h6>
+                        <div id="impact-list"></div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const viewMode = "{{ view_mode }}";
+let graphData = null;
+let network = null;
+let nodes = null;
+let edges = null;
+let physicsEnabled = true;
+let impactMode = false;
+let impactDepth = 2;
+let bundlingEnabled = true;
+let collapsedGroups = new Set();
+let impactResult = { upstream: [], downstream: [] };
+let activeFlowNodeId = "";
+let flowLayoutEnabled = true;
+
+const COLOR_MAP = {
+    system: "#1d4ed8",
+    interface: "#2563eb",
+    aplan_if: "#0ea5e9",
+    aplan_stg: "#22c55e",
+    bundle: "#f97316",
+    tech: "#a855f7",
+};
+
+function fetchLineageData() {
+    const params = new URLSearchParams();
+    if (viewMode) params.append("view", viewMode);
+    const url = params.toString() ? `/api/overview/lineage?${params.toString()}` : "/api/overview/lineage";
+    return fetch(url).then(resp => resp.json());
+}
+
+function fetchExecutiveData() {
+    return fetch("/api/overview/executive").then(resp => resp.json());
+}
+
+function normalizeValue(value) {
+    return (value || "").toString().trim();
+}
+
+function buildFilterOptions() {
+    const systemSelect = document.getElementById("filter-system");
+    const moduleSelect = document.getElementById("filter-module");
+    const prefixSelect = document.getElementById("filter-prefix");
+    const stgSelect = document.getElementById("filter-stg-type");
+    if (!systemSelect) return;
+
+    const systems = new Set();
+    const modules = new Set();
+    const prefixes = new Set();
+    const stgTypes = new Set();
+
+    graphData.nodes.forEach(node => {
+        if (node.system) systems.add(node.system);
+        if (node.module) modules.add(node.module);
+        if (node.domain_prefix) prefixes.add(node.domain_prefix);
+        if (node.stg_type) stgTypes.add(node.stg_type);
+    });
+
+    systemSelect.innerHTML = renderOptions(["전체", ...Array.from(systems).sort()]);
+    moduleSelect.innerHTML = renderOptions(["전체", ...Array.from(modules).sort()]);
+    prefixSelect.innerHTML = renderOptions(["전체", ...Array.from(prefixes).sort()]);
+    stgSelect.innerHTML = renderOptions(["전체", ...Array.from(stgTypes).sort()]);
+}
+
+function renderOptions(values) {
+    return values.map(value => {
+        const val = value === "전체" ? "" : value;
+        return `<option value="${val}">${value}</option>`;
+    }).join("");
+}
+
+function buildGroupChips() {
+    const container = document.getElementById("group-chips");
+    if (!container) return;
+    const groups = new Set();
+    graphData.nodes.forEach(node => {
+        if (node.system) groups.add(`시스템:${node.system}`);
+        if (node.domain_prefix) groups.add(`PREFIX:${node.domain_prefix}`);
+    });
+    container.innerHTML = Array.from(groups).sort().map(group => {
+        const isCollapsed = collapsedGroups.has(group);
+        return `
+            <span class="chip">
+                ${group}
+                <button onclick="toggleGroup('${group}')">${isCollapsed ? "펼침" : "접기"}</button>
+            </span>
+        `;
+    }).join("");
+}
+
+function toggleGroup(groupKey) {
+    if (collapsedGroups.has(groupKey)) {
+        collapsedGroups.delete(groupKey);
+    } else {
+        collapsedGroups.add(groupKey);
+    }
+    buildGroupChips();
+    renderNetwork();
+}
+
+function resetFilters() {
+    document.getElementById("filter-system").value = "";
+    document.getElementById("filter-module").value = "";
+    document.getElementById("filter-prefix").value = "";
+    document.getElementById("filter-stg-type").value = "";
+    document.getElementById("filter-update-only").checked = false;
+    collapsedGroups.clear();
+    buildGroupChips();
+    renderNetwork();
+}
+
+function filterNodes(node) {
+    const system = document.getElementById("filter-system").value;
+    const module = document.getElementById("filter-module").value;
+    const prefix = document.getElementById("filter-prefix").value;
+    const stgType = document.getElementById("filter-stg-type").value;
+    const updateOnly = document.getElementById("filter-update-only").checked;
+
+    if (system && node.system !== system) return false;
+    if (module && node.module !== module && node.type === "interface") return false;
+    if (prefix && node.domain_prefix !== prefix && node.type === "interface") return false;
+    if (stgType && node.stg_type !== stgType && node.type === "aplan_stg") return false;
+    if (updateOnly && node.type === "aplan_stg" && !node.update_only) return false;
+
+    const systemGroup = `시스템:${node.system}`;
+    const prefixGroup = node.domain_prefix ? `PREFIX:${node.domain_prefix}` : "";
+    if (collapsedGroups.has(systemGroup)) return false;
+    if (prefixGroup && collapsedGroups.has(prefixGroup) && node.type === "interface") return false;
+
+    return true;
+}
+
+function applyBundling(nodesMap, edgesList) {
+    if (!bundlingEnabled) return { nodes: nodesMap, edges: edgesList };
+    const bundledEdges = [];
+    const bundledNodes = { ...nodesMap };
+    const hiddenEdges = new Set();
+    const bundleEdges = [];
+
+    edgesList.forEach(edge => {
+        if (edge.edge_type === "to_stg") {
+            const stgId = edge.to;
+            const fanIn = graphData.meta.stg_fan_in[stgId] || 0;
+            if (fanIn > 1) {
+                hiddenEdges.add(edge.id);
+                const bundleId = `bundle:${stgId}`;
+                if (!bundledNodes[bundleId]) {
+                    const stgNode = nodesMap[stgId];
+                    bundledNodes[bundleId] = {
+                        id: bundleId,
+                        label: `${fanIn}개 인터페이스`,
+                        type: "bundle",
+                        level: "summary",
+                        system: "BUNDLE",
+                        flow_key: stgNode ? stgNode.flow_key : "",
+                        search_text: "",
+                    };
+                    bundleEdges.push({
+                        id: `edge:${bundleId}:${stgId}`,
+                        from: bundleId,
+                        to: stgId,
+                        edge_type: "bundle_to_stg",
+                    });
+                }
+            }
+        }
+    });
+
+    edgesList.forEach(edge => {
+        if (!hiddenEdges.has(edge.id)) {
+            bundledEdges.push(edge);
+        }
+    });
+
+    return { nodes: bundledNodes, edges: bundledEdges.concat(bundleEdges) };
+}
+
+function renderNetwork() {
+    if (!graphData) return;
+    const nodesMap = {};
+    graphData.nodes.forEach(node => {
+        if (!filterNodes(node)) return;
+        if (activeFlowNodeId && !isNodeInActiveFlow(node.id)) return;
+        nodesMap[node.id] = {
+            ...node,
+            color: {
+                background: COLOR_MAP[node.type] || "#94a3b8",
+                border: "#1e293b",
+            },
+            shape: node.type === "system" ? "ellipse" : "box",
+            font: { size: 18, color: "#1f2937", face: "Arial", bold: true },
+        };
+    });
+
+    const edgesList = graphData.edges
+        .filter(edge => nodesMap[edge.from] && nodesMap[edge.to])
+        .map((edge, index) => ({
+            ...edge,
+            id: edge.id || `edge-${index}`,
+            arrows: "to",
+            color: { color: "#94a3b8" },
+        }));
+
+    const bundled = applyBundling(nodesMap, edgesList);
+    const finalNodes = Object.values(bundled.nodes);
+    const finalEdges = bundled.edges;
+
+    if (!nodes) {
+        nodes = new vis.DataSet(finalNodes);
+        edges = new vis.DataSet(finalEdges);
+    } else {
+        nodes.clear();
+        edges.clear();
+        nodes.add(finalNodes);
+        edges.add(finalEdges);
+    }
+
+    const container = document.getElementById("aplan-network");
+    const options = {
+        nodes: {
+            borderWidth: 2,
+            shadow: true,
+            margin: 12,
+            scaling: {
+                min: 32,
+                max: 70,
+            },
+            font: {
+                size: 18,
+                color: "#1f2937",
+                face: "Arial",
+                bold: true,
+            },
+        },
+        edges: {
+            smooth: { type: "continuous", roundness: 0.4 },
+            width: 2,
+        },
+        physics: {
+            enabled: true,
+            barnesHut: {
+                gravitationalConstant: -2200,
+                springLength: 220,
+                springConstant: 0.03,
+                damping: 0.08,
+            },
+        },
+        interaction: {
+            hover: true,
+            zoomSpeed: 0.25,
+            selectConnectedEdges: true,
+            zoomView: true,
+            dragView: true,
+        },
+    };
+
+    if (!network) {
+        network = new vis.Network(container, { nodes, edges }, options);
+        network.on("click", params => {
+            if (!params.nodes.length) return;
+            const nodeId = params.nodes[0];
+            handleNodeSelect(nodeId);
+        });
+        network.on("zoom", params => applySemanticZoom(params.scale));
+    } else {
+        network.setData({ nodes, edges });
+    }
+
+    if (flowLayoutEnabled) {
+        applyFlowLayout();
+    } else {
+        network.setOptions({ physics: { enabled: physicsEnabled } });
+    }
+
+    const stats = document.getElementById("graph-stats");
+    if (stats) {
+        stats.textContent = `노드 ${finalNodes.length}개 · 엣지 ${finalEdges.length}개`;
+    }
+}
+
+function applySemanticZoom(scale) {
+    if (!nodes) return;
+    const zoomedOut = scale < 0.45;
+    const zoomedIn = scale > 1.2;
+    const updates = [];
+    nodes.forEach(node => {
+        if (node.type === "interface") {
+            updates.push({
+                id: node.id,
+                label: zoomedOut ? "" : node.label,
+                opacity: zoomedOut ? 0.2 : 1,
+            });
+        }
+        if (node.type === "bundle") {
+            updates.push({ id: node.id, opacity: zoomedOut ? 1 : 0.8 });
+        }
+        if (node.type === "aplan_stg") {
+            updates.push({ id: node.id, label: zoomedIn ? node.label : node.label });
+        }
+    });
+    nodes.update(updates);
+}
+
+function handleNodeSelect(nodeId) {
+    if (!graphData) return;
+    const node = graphData.nodes.find(item => item.id === nodeId) || nodes.get(nodeId);
+    if (!node) return;
+    renderDetails(node);
+    if (impactMode) {
+        highlightImpact(nodeId);
+    }
+    if (nodeId.startsWith("bundle:")) {
+        bundlingEnabled = false;
+        renderNetwork();
+        return;
+    }
+}
+
+function renderDetails(node) {
+    const businessDetail = document.getElementById("business-detail");
+    const techDetail = document.getElementById("tech-detail");
+    if (!businessDetail || !techDetail) return;
+
+    if (node.type === "interface") {
+        businessDetail.innerHTML = `
+            <div class="impact-highlight"><strong>${node.interface_name || node.label}</strong></div>
+            <div>항목ID: ${node.item_id || "-"}</div>
+            <div>시스템: ${node.system || "-"}</div>
+            <div>모듈: ${node.module || "-"}</div>
+            <div>APlan IF: ${node.aplan_if_table || "-"}</div>
+            <div>APlan STG: ${(node.aplan_stg_tables || []).join(", ") || "-"}</div>
+        `;
+        techDetail.innerHTML = `
+            <div>Program: ${node.program_name || "-"}</div>
+            <div>TCODE: ${node.tcode || "-"}</div>
+            <div>FM: ${node.if_fm || "-"}</div>
+            <div>집계테이블: ${node.agg_table || "-"}</div>
+            <div>I/F 테이블: ${node.if_table || "-"}</div>
+            <div>LOG 테이블: ${node.log_table || "-"}</div>
+        `;
+    } else if (node.type === "aplan_stg") {
+        businessDetail.innerHTML = `
+            <div class="impact-highlight"><strong>${node.label}</strong></div>
+            <div>STG 타입: ${node.stg_type || "-"}</div>
+            <div>Update Only: ${node.update_only ? "Y" : "N"}</div>
+            <div>Fan-in: ${graphData.meta.stg_fan_in[node.id] || 0}개</div>
+        `;
+        techDetail.innerHTML = "STG 테이블 상세가 필요하면 연결된 인터페이스를 선택하세요.";
+    } else if (node.type === "aplan_if") {
+        businessDetail.innerHTML = `
+            <div class="impact-highlight"><strong>${node.label}</strong></div>
+            <div>APLAN I/F Table</div>
+        `;
+        techDetail.innerHTML = "APLAN I/F 테이블입니다.";
+    } else if (["program", "agg_table", "log_table", "fm", "eai"].includes(node.type)) {
+        businessDetail.innerHTML = `
+            <div class="impact-highlight"><strong>${node.label}</strong></div>
+            <div>타입: ${node.type}</div>
+        `;
+        techDetail.innerHTML = `
+            <div>시스템: ${node.system || "-"}</div>
+            <div>모듈: ${node.module || "-"}</div>
+            <div>Flow: ${node.flow_key || "-"}</div>
+        `;
+    } else {
+        businessDetail.innerHTML = `<div class="impact-highlight"><strong>${node.label}</strong></div>`;
+        techDetail.innerHTML = "선택한 노드의 기술 정보가 없습니다.";
+    }
+}
+
+function handleSearch() {
+    const term = normalizeValue(document.getElementById("global-search").value).toLowerCase();
+    if (!term || !graphData || !network) return;
+    const matches = graphData.nodes.filter(node => (node.search_text || "").includes(term));
+    if (!matches.length) return;
+    const target = matches[0].id;
+    if (matches[0].type === "interface") {
+        activeFlowNodeId = target;
+    }
+    renderNetwork();
+    network.selectNodes([target]);
+    network.focus(target, { scale: 1.4, animation: true });
+    handleNodeSelect(target);
+}
+
+function clearSearch() {
+    document.getElementById("global-search").value = "";
+    if (network) network.unselectAll();
+}
+
+function clearFlowFocus() {
+    activeFlowNodeId = "";
+    renderNetwork();
+}
+
+function isNodeInActiveFlow(nodeId) {
+    if (!activeFlowNodeId) return true;
+    if (nodeId === activeFlowNodeId) return true;
+    const activeNode = graphData.nodes.find(node => node.id === activeFlowNodeId);
+    const targetNode = graphData.nodes.find(node => node.id === nodeId);
+    if (activeNode && targetNode && activeNode.flow_key && targetNode.flow_key) {
+        return activeNode.flow_key === targetNode.flow_key;
+    }
+    const adjacency = buildAdjacency();
+    const visible = new Set([activeFlowNodeId]);
+    const queue = [{ id: activeFlowNodeId, depth: 0 }];
+    while (queue.length) {
+        const current = queue.shift();
+        if (current.depth >= 2) continue;
+        const nextNodes = [
+            ...(adjacency.upstream[current.id] || []),
+            ...(adjacency.downstream[current.id] || []),
+        ];
+        nextNodes.forEach(nextId => {
+            if (visible.has(nextId)) return;
+            visible.add(nextId);
+            queue.push({ id: nextId, depth: current.depth + 1 });
+        });
+    }
+    return visible.has(nodeId);
+}
+
+function buildFlowMap() {
+    const flowMap = {};
+    graphData.nodes.forEach(node => {
+        if (node.flow_key) flowMap[node.id] = node.flow_key;
+    });
+    graphData.edges.forEach(edge => {
+        const fromFlow = flowMap[edge.from];
+        const toFlow = flowMap[edge.to];
+        if (fromFlow && !toFlow) flowMap[edge.to] = fromFlow;
+        if (toFlow && !fromFlow) flowMap[edge.from] = toFlow;
+    });
+    return flowMap;
+}
+
+function applyFlowLayout() {
+    if (!nodes || !network || !graphData) return;
+    const flowMap = buildFlowMap();
+    const interfaceNodes = graphData.nodes.filter(node => node.type === "interface");
+    const flowOrder = interfaceNodes
+        .map(node => ({
+            flow: flowMap[node.id] || node.id,
+            key: node.item_id || node.interface_name || node.label || node.id,
+        }))
+        .sort((a, b) => String(a.key).localeCompare(String(b.key)))
+        .map(item => item.flow);
+    const uniqueFlows = Array.from(new Set(flowOrder));
+    const laneGap = 220;
+    const laneCenterOffset = (uniqueFlows.length - 1) / 2;
+    const laneY = new Map();
+    uniqueFlows.forEach((flow, index) => {
+        laneY.set(flow, (index - laneCenterOffset) * laneGap);
+    });
+
+    const xPositions = {
+        system: -620,
+        interface: -280,
+        program: 0,
+        agg_table: 220,
+        log_table: 400,
+        fm: 580,
+        eai: 760,
+        aplan_if: 980,
+        aplan_stg: 1240,
+        bundle: 1080,
+    };
+
+    const updates = [];
+    nodes.forEach(node => {
+        const flowKey = flowMap[node.id];
+        if (node.type === "system") {
+            updates.push({
+                id: node.id,
+                x: xPositions.system,
+                fixed: { x: true, y: false },
+            });
+            return;
+        }
+        if (!flowKey || !laneY.has(flowKey)) return;
+        const y = laneY.get(flowKey);
+        updates.push({
+            id: node.id,
+            x: xPositions[node.type] ?? 0,
+            y: y,
+            fixed: { x: true, y: true },
+        });
+    });
+
+    nodes.update(updates);
+    network.setOptions({ physics: { enabled: false } });
+    network.fit({ animation: true });
+}
+
+function toggleFlowLayout() {
+    flowLayoutEnabled = !flowLayoutEnabled;
+    if (!network) return;
+    if (flowLayoutEnabled) {
+        applyFlowLayout();
+        return;
+    }
+    const updates = nodes.map(node => ({
+        id: node.id,
+        fixed: { x: false, y: false },
+    }));
+    nodes.update(updates);
+    network.setOptions({ physics: { enabled: physicsEnabled } });
+    network.fit({ animation: true });
+}
+
+function buildAdjacency() {
+    const upstream = {};
+    const downstream = {};
+    graphData.edges.forEach(edge => {
+        if (!downstream[edge.from]) downstream[edge.from] = [];
+        if (!upstream[edge.to]) upstream[edge.to] = [];
+        downstream[edge.from].push(edge.to);
+        upstream[edge.to].push(edge.from);
+    });
+    return { upstream, downstream };
+}
+
+function traverseImpact(centerId, direction, depth) {
+    const { upstream, downstream } = buildAdjacency();
+    const adjacency = direction === "upstream" ? upstream : downstream;
+    const visited = new Set();
+    const queue = [{ id: centerId, level: 0 }];
+    const results = [];
+
+    while (queue.length) {
+        const current = queue.shift();
+        if (current.level === depth && depth !== 0) continue;
+        const nextNodes = adjacency[current.id] || [];
+        nextNodes.forEach(nextId => {
+            if (visited.has(nextId)) return;
+            visited.add(nextId);
+            results.push(nextId);
+            queue.push({ id: nextId, level: current.level + 1 });
+        });
+    }
+    return results;
+}
+
+function highlightImpact(centerId) {
+    if (!nodes || !edges) return;
+    const depthValue = impactDepth;
+    const upstream = traverseImpact(centerId, "upstream", depthValue);
+    const downstream = traverseImpact(centerId, "downstream", depthValue);
+    impactResult = { upstream, downstream };
+
+    const highlightSet = new Set([centerId, ...upstream, ...downstream]);
+    const nodeUpdates = nodes.map(node => ({
+        id: node.id,
+        opacity: highlightSet.has(node.id) ? 1 : 0.15,
+    }));
+    nodes.update(nodeUpdates);
+
+    const edgeUpdates = edges.map(edge => {
+        const active = highlightSet.has(edge.from) && highlightSet.has(edge.to);
+        return { id: edge.id, opacity: active ? 1 : 0.1, width: active ? 3 : 1 };
+    });
+    edges.update(edgeUpdates);
+
+    renderImpactList(centerId, upstream, downstream);
+}
+
+function renderImpactList(centerId, upstream, downstream) {
+    const list = document.getElementById("impact-list");
+    if (!list) return;
+    const formatItems = (items, title) => {
+        if (!items.length) return `<div class="text-muted">${title}: 없음</div>`;
+        const rows = items.map(id => {
+            const node = graphData.nodes.find(item => item.id === id);
+            return `<li>${node ? node.label : id}</li>`;
+        }).join("");
+        return `<div class="mt-2"><strong>${title}</strong><ul>${rows}</ul></div>`;
+    };
+    list.innerHTML = `
+        <div class="text-muted">센터: ${centerId}</div>
+        ${formatItems(upstream, "Upstream")}
+        ${formatItems(downstream, "Downstream")}
+    `;
+}
+
+function toggleImpact() {
+    impactMode = !impactMode;
+    if (!impactMode && nodes && edges) {
+        nodes.update(nodes.map(node => ({ id: node.id, opacity: 1 })));
+        edges.update(edges.map(edge => ({ id: edge.id, opacity: 1, width: 2 })));
+    }
+}
+
+function applyImpactDepth() {
+    const value = parseInt(document.getElementById("impact-depth").value, 10);
+    impactDepth = Number.isNaN(value) ? 2 : value;
+}
+
+function fitNetwork() {
+    if (network) network.fit({ animation: true });
+}
+
+function zoomIn() {
+    if (!network) return;
+    const scale = network.getScale();
+    network.moveTo({ scale: scale * 1.2, animation: true });
+}
+
+function zoomOut() {
+    if (!network) return;
+    const scale = network.getScale();
+    network.moveTo({ scale: scale * 0.8, animation: true });
+}
+
+function handleZoomHotkeys(event) {
+    if (!network) return;
+    if (event.key === "+" || event.key === "=") {
+        event.preventDefault();
+        zoomIn();
+    }
+    if (event.key === "-" || event.key === "_") {
+        event.preventDefault();
+        zoomOut();
+    }
+}
+
+function togglePhysics() {
+    if (!network) return;
+    physicsEnabled = !physicsEnabled;
+    network.setOptions({ physics: { enabled: physicsEnabled } });
+}
+
+function toggleBundling() {
+    bundlingEnabled = !bundlingEnabled;
+    renderNetwork();
+}
+
+function exportPng() {
+    if (!network) return;
+    const canvas = network.canvas.frame.canvas;
+    const url = canvas.toDataURL("image/png");
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "aplan-impact.png";
+    link.click();
+}
+
+function exportImpactCsv() {
+    if (!impactResult || (!impactResult.upstream.length && !impactResult.downstream.length)) return;
+    const rows = [["direction", "node"]];
+    impactResult.upstream.forEach(id => rows.push(["upstream", id]));
+    impactResult.downstream.forEach(id => rows.push(["downstream", id]));
+    downloadCsv("impact.csv", rows);
+}
+
+function exportExecutiveCsv() {
+    if (!window.execDetailRows) return;
+    const rows = [["item_id", "interface_name", "system", "module", "aplan_if_table", "aplan_stg_table", "flow_type", "fan_in"]];
+    window.execDetailRows.forEach(row => {
+        rows.push([
+            row.item_id,
+            row.interface_name,
+            row.system,
+            row.module,
+            row.aplan_if_table,
+            row.aplan_stg_table,
+            row.flow_type,
+            row.fan_in,
+        ]);
+    });
+    downloadCsv("executive_detail.csv", rows);
+}
+
+function downloadCsv(filename, rows) {
+    const csv = rows.map(row => row.map(value => `"${String(value).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    link.click();
+}
+
+function loadExecutiveView() {
+    fetchExecutiveData().then(data => {
+        document.getElementById("kpi-total-interfaces").textContent = data.kpi.total_interfaces;
+        document.getElementById("kpi-total-systems").textContent = data.kpi.total_systems;
+        document.getElementById("kpi-unique-stg").textContent = data.kpi.unique_target_stg;
+        document.getElementById("kpi-failures").textContent = data.kpi.failures;
+
+        const riskList = document.getElementById("risk-list");
+        riskList.innerHTML = `
+            <li>Fan-in 상위: ${data.risks.top_fan_in.map(item => `${item.stg}(${item.count})`).join(", ") || "-"}</li>
+            <li>Update Only: ${data.risks.update_only.join(", ") || "-"}</li>
+            <li>LOG 테이블 누락: ${data.risks.missing_log.join(", ") || "-"}</li>
+            <li>I/F 테이블 누락: ${data.risks.missing_if.join(", ") || "-"}</li>
+        `;
+
+        window.execDetailRows = data.detail_rows;
+        const detailBody = document.getElementById("executive-detail-body");
+        detailBody.innerHTML = data.detail_rows.map(row => `
+            <tr>
+                <td>${row.item_id}</td>
+                <td>${row.interface_name}</td>
+                <td>${row.system}</td>
+                <td>${row.module}</td>
+                <td>${row.aplan_if_table}</td>
+                <td>${row.aplan_stg_table}</td>
+                <td>${row.flow_type}</td>
+                <td>${row.fan_in}</td>
+            </tr>
+        `).join("");
+
+        renderChart("chart-system", data.distribution.by_system, "System");
+        renderChart("chart-prefix", data.distribution.by_prefix, "Prefix");
+        renderChart("chart-stg", data.distribution.by_stg_type, "STG");
+        renderSummaryFlow(data.summary_flow);
+    });
+}
+
+function renderChart(canvasId, payload, label) {
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+    const labels = Object.keys(payload || {});
+    const values = Object.values(payload || {});
+    if (!labels.length) return;
+    new Chart(ctx, {
+        type: "bar",
+        data: {
+            labels,
+            datasets: [{ label, data: values, backgroundColor: "#60a5fa" }],
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+        },
+    });
+}
+
+function renderSummaryFlow(summary) {
+    const container = document.getElementById("summary-flow");
+    if (!container) return;
+    if (!summary.edges.length) {
+        container.innerHTML = "<div class='text-muted'>요약 흐름 데이터가 없습니다.</div>";
+        return;
+    }
+    const rows = summary.edges.map(edge => `
+        <div class="d-flex justify-content-between small">
+            <span>${edge.from}</span>
+            <span>→</span>
+            <span>${edge.to}</span>
+            <span class="text-muted">${edge.count}</span>
+        </div>
+    `).join("");
+    container.innerHTML = rows;
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    if (viewMode === "executive") {
+        loadExecutiveView();
+        return;
+    }
+
+    document.addEventListener("keydown", handleZoomHotkeys);
+
+    fetchLineageData().then(data => {
+        graphData = data;
+        buildFilterOptions();
+        buildGroupChips();
+        renderNetwork();
+
+        document.getElementById("filter-system").addEventListener("change", renderNetwork);
+        document.getElementById("filter-module").addEventListener("change", renderNetwork);
+        document.getElementById("filter-prefix").addEventListener("change", renderNetwork);
+        document.getElementById("filter-stg-type").addEventListener("change", renderNetwork);
+        document.getElementById("filter-update-only").addEventListener("change", renderNetwork);
+    });
+});
+</script>
+{% endblock %}

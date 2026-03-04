@@ -14,6 +14,7 @@ from pathlib import Path
 from sqlmodel import Session, select
 from app.database import engine, init_db
 from app.models import IntegrationObject, IntegrationRelation
+from app.services.flow_loader import load_flows_from_file
 
 # 로깅 설정
 logging.basicConfig(
@@ -273,6 +274,14 @@ def main():
             # Relations 로딩
             logger.info("Relations 시트 로딩 중...")
             load_relations(session, df_relations, object_key_to_id, source_doc)
+
+            # Flows 로딩 (mapping.xlsx 또는 Interface.xlsx에 인터페이스 시트가 있으면 사용)
+            logger.info("Flows 시트 로딩 중...")
+            flows_loaded = load_flows_from_file(session=session, file_path=mapping_path)
+            interface_path = Path("Interface.xlsx")
+            if flows_loaded == 0 and interface_path.exists():
+                flows_loaded = load_flows_from_file(session=session, file_path=interface_path)
+            logger.info(f"Flows 로딩 완료: {flows_loaded}개")
             
             # 커밋
             session.commit()

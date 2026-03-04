@@ -18,6 +18,7 @@ from sqlmodel import Session
 from app.database import get_session, engine, init_db
 from app.models import IntegrationObject, IntegrationRelation
 from load_mapping import load_objects, load_relations
+from app.services.flow_loader import load_flows_from_file
 
 router = APIRouter(prefix="/upload", tags=["upload"])
 
@@ -527,6 +528,9 @@ async def upload_file(
                 # Relations 로딩
                 load_relations(db_session, df_relations, object_key_to_id, source_doc)
                 
+                # Flows 로딩 (mapping.xlsx에 인터페이스 시트가 있으면 사용)
+                load_flows_from_file(session=db_session, file_path=mapping_path)
+
                 # 커밋
                 db_session.commit()
                 

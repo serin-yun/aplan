@@ -7,7 +7,7 @@ MRD 4.1 요구사항:
 """
 
 from sqlmodel import SQLModel, create_engine, Session
-from app.models import IntegrationObject, IntegrationRelation
+from app.models import IntegrationObject, IntegrationRelation, Flow
 
 # SQLite 데이터베이스 URL
 DATABASE_URL = "sqlite:///./impact_map.db"

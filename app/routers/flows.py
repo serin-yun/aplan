@@ -7,7 +7,7 @@ from fastapi.templating import Jinja2Templates
 from sqlmodel import Session
 
 from app.database import get_session
-from app.services.flow_service import build_flow_index, build_flow_summary, collect_flows, filter_flow_cards
+from app.services.flow_service import build_flow_cards, build_flow_summary_line, get_flow_by_key, list_flows
 from app.services.overview_service import normalize_view_mode
 
 router = APIRouter(prefix="/flows", tags=["flows"])
@@ -20,23 +20,24 @@ templates = Jinja2Templates(directory=str(templates_dir))
 async def flow_list(
     request: Request,
     q: Optional[str] = Query(None, description="검색어 (인터페이스명/항목ID/IF ID/테이블)"),
-    system_type: Optional[str] = Query(None, description="시스템 타입 필터"),
+    flow_type: Optional[str] = Query(None, description="Type 필터 (Inbound/Outbound)"),
+    system: Optional[str] = Query(None, description="시스템 필터"),
     module: Optional[str] = Query(None, description="모듈 필터"),
-    view: Optional[str] = Query(None, description="보기 모드 (business|leader|ops)"),
+    view: Optional[str] = Query(None, description="보기 모드 (business|executive|ops)"),
     session: Session = Depends(get_session),
 ):
     view_mode = normalize_view_mode(view)
-    index = build_flow_index(session=session)
-    cards = filter_flow_cards(cards=index["cards"], q=q, system_type=system_type, module=module)
+    flows = list_flows(session=session, q=q, flow_type=flow_type, system=system, module=module)
+    cards = build_flow_cards(flows)
     return templates.TemplateResponse(
         "flows.html",
         {
             "request": request,
             "view_mode": view_mode,
             "cards": cards,
-            "primary_flow_key": index["primary_flow_key"],
             "q": q,
-            "system_type": system_type,
+            "flow_type": flow_type,
+            "system": system,
             "module": module,
         },
     )
@@ -46,22 +47,20 @@ async def flow_list(
 async def flow_detail(
     request: Request,
     flow_key: str,
-    view: Optional[str] = Query(None, description="보기 모드 (business|leader|ops)"),
+    view: Optional[str] = Query(None, description="보기 모드 (business|executive|ops)"),
     session: Session = Depends(get_session),
 ):
     view_mode = normalize_view_mode(view)
-    flows = collect_flows(session=session)
-    objects = flows.get(flow_key, [])
-    if not objects:
+    flow = get_flow_by_key(session=session, flow_key=flow_key)
+    if not flow:
         raise HTTPException(status_code=404, detail="Flow를 찾을 수 없습니다.")
-    summary = build_flow_summary(flow_key=flow_key, objects=objects)
     return templates.TemplateResponse(
         "flow_detail.html",
         {
             "request": request,
             "flow_key": flow_key,
             "view_mode": view_mode,
-            "summary": summary,
+            "flow": flow,
         },
     )
 
@@ -70,21 +69,21 @@ async def flow_detail(
 async def flow_report(
     request: Request,
     flow_key: str,
-    view: Optional[str] = Query(None, description="보기 모드 (business|leader|ops)"),
+    view: Optional[str] = Query(None, description="보기 모드 (business|executive|ops)"),
     session: Session = Depends(get_session),
 ):
     view_mode = normalize_view_mode(view)
-    flows = collect_flows(session=session)
-    objects = flows.get(flow_key, [])
-    if not objects:
+    flow = get_flow_by_key(session=session, flow_key=flow_key)
+    if not flow:
         raise HTTPException(status_code=404, detail="Flow를 찾을 수 없습니다.")
-    summary = build_flow_summary(flow_key=flow_key, objects=objects)
+    summary_line = build_flow_summary_line(flow)
     return templates.TemplateResponse(
         "flow_report.html",
         {
             "request": request,
             "flow_key": flow_key,
             "view_mode": view_mode,
-            "summary": summary,
+            "flow": flow,
+            "summary_line": summary_line,
         },
     )

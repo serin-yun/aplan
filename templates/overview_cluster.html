@@ -11,7 +11,7 @@
 <style>
     #cluster-network {
         width: 100%;
-        min-height: 420px;
+        min-height: 520px;
         border: 1px solid #dee2e6;
         border-radius: var(--radius-md);
         background: #fafafa;
@@ -223,6 +223,7 @@ async function loadClusterNetwork() {
 
         clusterNetwork = new vis.Network(container, { nodes, edges }, options);
         clusterNetwork.on('stabilizationEnd', function() {
+            clusterNetwork.fit({ animation: true });
             clusterNetwork.setOptions({ physics: { enabled: false } });
         });
 

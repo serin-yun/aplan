@@ -12,9 +12,6 @@
     <div class="col-12">
         <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
             <h2 class="mb-0">Flow 목록</h2>
-            {% if primary_flow_key %}
-            <a href="/flows/{{ primary_flow_key | urlencode }}?view={{ view_mode }}" class="btn btn-sm btn-primary">PRIMARY FLOW 바로가기</a>
-            {% endif %}
         </div>
 
         <div class="card mb-3">
@@ -22,11 +19,14 @@
                 <form method="get" action="/flows">
                     <input type="hidden" name="view" value="{{ view_mode }}">
                     <div class="row g-2">
-                        <div class="col-md-6">
-                            <input type="text" class="form-control" name="q" placeholder="인터페이스명/항목ID/IF ID/테이블 검색" value="{{ q or '' }}">
+                        <div class="col-md-5">
+                            <input type="text" class="form-control" name="q" placeholder="항목ID/인터페이스명/프로그램/TCODE/IF ID/FM/테이블" value="{{ q or '' }}">
                         </div>
-                        <div class="col-md-3">
-                            <input type="text" class="form-control" name="system_type" placeholder="시스템 타입" value="{{ system_type or '' }}">
+                        <div class="col-md-2">
+                            <input type="text" class="form-control" name="flow_type" placeholder="Type" value="{{ flow_type or '' }}">
+                        </div>
+                        <div class="col-md-2">
+                            <input type="text" class="form-control" name="system" placeholder="시스템" value="{{ system or '' }}">
                         </div>
                         <div class="col-md-3">
                             <input type="text" class="form-control" name="module" placeholder="모듈" value="{{ module or '' }}">
@@ -40,36 +40,33 @@
             </div>
         </div>
 
-        <div class="row g-3">
-            {% for flow in cards %}
-            <div class="col-md-6 col-xl-4">
-                <div class="card h-100">
-                    <div class="card-body d-flex flex-column">
-                        <div class="d-flex justify-content-between align-items-start gap-2">
-                            <h6 class="mb-1">{{ flow.interface_name }}</h6>
-                            {% if flow.flow_key == primary_flow_key %}
-                            <span class="badge bg-primary">PRIMARY</span>
-                            {% endif %}
-                        </div>
-                        <div class="text-muted small mb-2">{{ flow.program_description or "설명이 없습니다." }}</div>
-                        <div class="small mb-2">
-                            <div><strong>시스템</strong> {{ flow.system_type or "-" }}</div>
-                            <div><strong>모듈</strong> {{ flow.module or "-" }}</div>
-                        </div>
-                        <div class="small text-muted mb-3">
-                            {% if flow.stg_tables %}
-                            STG: {{ flow.stg_tables | join(", ") }}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Flow</th>
+                        <th>Type</th>
+                        <th class="text-end">상세</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for flow in cards %}
+                    <tr style="cursor: pointer;" onclick="window.location.href='/flows/{{ flow.flow_key | urlencode }}?view={{ view_mode }}'">
+                        <td>{{ flow.display_name }}</td>
+                        <td>
+                            {% if flow.flow_type %}
+                            <span class="badge bg-secondary">{{ flow.flow_type }}</span>
                             {% else %}
-                            STG 정보 없음
+                            <span class="text-muted">-</span>
                             {% endif %}
-                        </div>
-                        <div class="mt-auto">
-                            <a href="/flows/{{ flow.flow_key | urlencode }}?view={{ view_mode }}" class="btn btn-sm btn-primary">Flow 보기</a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            {% endfor %}
+                        </td>
+                        <td class="text-end">
+                            <a href="/flows/{{ flow.flow_key | urlencode }}?view={{ view_mode }}" class="btn btn-sm btn-outline-primary">보기</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
 </div>

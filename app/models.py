@@ -87,3 +87,31 @@ class IntegrationRelation(IntegrationRelationBase, table=True):
         sa_relationship_kwargs={"foreign_keys": "IntegrationRelation.to_object_id"}
     )
 
+
+class Flow(SQLModel, table=True):
+    __tablename__ = "flows"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    flow_key: str = Field(unique=True, index=True, description="Flow 유니크 키 (Type|항목ID|IF ID)")
+    flow_type: Optional[str] = Field(default=None, description="Type (Inbound/Outbound)")
+    item_id: Optional[str] = Field(default=None, description="항목ID")
+    name: Optional[str] = Field(default=None, description="인터페이스명")
+    program_desc: Optional[str] = Field(default=None, description="프로그램 설명")
+    system: Optional[str] = Field(default=None, description="시스템")
+    module: Optional[str] = Field(default=None, description="모듈")
+    program_name: Optional[str] = Field(default=None, description="프로그램명")
+    tcode: Optional[str] = Field(default=None, description="TCODE")
+    if_fm: Optional[str] = Field(default=None, description="I/F FM")
+    if_id: Optional[str] = Field(default=None, description="IF ID")
+    agg_table: Optional[str] = Field(default=None, description="집계테이블")
+    if_table: Optional[str] = Field(default=None, description="I/F테이블")
+    log_table: Optional[str] = Field(default=None, description="LOG테이블")
+    aplan_if_table: Optional[str] = Field(default=None, description="Aplan I/F Table")
+    aplan_stg_tables_raw: Optional[str] = Field(default=None, description="Aplan STG Table 원문")
+    aplan_stg_tables: Optional[str] = Field(default=None, description="Aplan STG Table 파싱값(콤마 구분)")
+    source_doc: Optional[str] = Field(default=None, description="소스 문서")
+    source_sheet: Optional[str] = Field(default=None, description="소스 시트")
+    source_row: Optional[int] = Field(default=None, description="소스 행")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+

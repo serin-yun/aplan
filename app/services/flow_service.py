@@ -1,285 +1,272 @@
 from __future__ import annotations
 
-from collections import Counter, defaultdict
+from typing import Optional
 
-from sqlmodel import Session, select
+from sqlmodel import Session, select, or_
 
-from app.models import IntegrationObject
-from app.services.overview_service import split_flow_tags
-
-
-def parse_flow_key_parts(flow_key: str) -> dict:
-    parts = [part.strip() for part in flow_key.split("|") if part and part.strip()]
-    if len(parts) >= 3:
-        return {"flow_type": parts[0], "item_id": parts[1], "if_id": parts[2]}
-    if len(parts) == 2:
-        return {"flow_type": parts[0], "item_id": parts[1], "if_id": ""}
-    if len(parts) == 1:
-        return {"flow_type": "", "item_id": parts[0], "if_id": ""}
-    return {"flow_type": "", "item_id": "", "if_id": ""}
+from app.models import Flow
+from app.services.flow_loader import split_names
 
 
-def choose_most_common(values: list[str]) -> str:
-    filtered = [value.strip() for value in values if value and value.strip()]
-    if not filtered:
-        return ""
-    return Counter(filtered).most_common(1)[0][0]
+SOURCE_Y = 120
+IF_Y = 260
+APLAN_Y = 400
+X0 = 150
+X1 = 450
+X2 = 750
+X3 = 1050
 
 
-def collect_unique_names(objects: list[IntegrationObject]) -> list[str]:
-    seen: set[str] = set()
-    ordered: list[str] = []
-    for obj in objects:
-        name = (obj.name or "").strip()
-        if not name or name in seen:
-            continue
-        seen.add(name)
-        ordered.append(name)
-    return ordered
+def build_flow_key(*, flow_type: str, item_id: str, if_id: str) -> str:
+    return f"{flow_type}|{item_id}|{if_id}".strip()
 
 
-def pick_program_description(objects: list[IntegrationObject]) -> str:
-    for obj in objects:
-        if obj.object_type == "JOB" and obj.description:
-            return obj.description
-    for obj in objects:
-        if obj.layer == "Legacy" and obj.description:
-            return obj.description
-    for obj in objects:
-        if obj.description:
-            return obj.description
-    return ""
+def parse_stg_tables(flow: Flow) -> list[str]:
+    raw = flow.aplan_stg_tables_raw or ""
+    parsed = split_names(raw)
+    if parsed:
+        return parsed
+    return split_names(flow.aplan_stg_tables or "")
 
 
-def detect_transfer_tables(objects: list[IntegrationObject]) -> list[IntegrationObject]:
-    transfer_candidates = []
-    for obj in objects:
-        if obj.layer != "Legacy" or obj.object_type != "TABLE":
-            continue
-        name = (obj.name or "").upper()
-        description = (obj.description or "").upper()
-        if "IF" in name or "I/F" in name or "LOG" in name or "IF" in description or "LOG" in description:
-            transfer_candidates.append(obj)
-    return transfer_candidates
+def flow_display_name(flow: Flow) -> str:
+    item_id = flow.item_id or ""
+    name = flow.name or ""
+    if item_id and name:
+        return f"[{item_id}] {name}"
+    return name or item_id or flow.flow_key
 
 
-def build_flow_groups(objects: list[IntegrationObject]) -> dict:
-    legacy_jobs = [obj for obj in objects if obj.layer == "Legacy" and obj.object_type == "JOB"]
-    legacy_tables = [obj for obj in objects if obj.layer == "Legacy" and obj.object_type == "TABLE"]
-    transfer_tables = detect_transfer_tables(legacy_tables)
-    source_tables = [obj for obj in legacy_tables if obj not in transfer_tables]
-    log_tables = [obj for obj in legacy_tables if "LOG" in (obj.name or "").upper()]
-    aplan_if_tables = [obj for obj in objects if obj.layer == "In" and obj.system_type == "APLAN"]
-    stg_tables = [obj for obj in objects if obj.layer == "Staging" and obj.system_type == "APLAN"]
-
-    return {
-        "legacy_jobs": legacy_jobs,
-        "legacy_tables": legacy_tables,
-        "source_tables": source_tables,
-        "transfer_tables": transfer_tables,
-        "log_tables": log_tables,
-        "aplan_if_tables": aplan_if_tables,
-        "stg_tables": stg_tables,
-    }
+def build_flow_summary_line(flow: Flow) -> str:
+    stg_list = parse_stg_tables(flow)
+    stg_label = stg_list[0] if stg_list else "표준화 결과"
+    system = flow.system or "원천 시스템"
+    name = flow.name or flow.flow_key
+    return f"{system}에서 {name} 데이터를 APlan으로 전송하여 {stg_label}로 표준화합니다."
 
 
-def build_flow_summary(*, flow_key: str, objects: list[IntegrationObject]) -> dict:
-    parts = parse_flow_key_parts(flow_key)
-    system_candidates = [obj.system_type for obj in objects if obj.layer == "Legacy"] or [obj.system_type for obj in objects]
-    source_system = choose_most_common(system_candidates)
-    module = choose_most_common([obj.module for obj in objects if obj.module])
-    program_description = pick_program_description(objects)
-
-    groups = build_flow_groups(objects)
-    stg_tables = collect_unique_names(groups["stg_tables"])
-    legacy_programs = collect_unique_names(groups["legacy_jobs"])
-    transfer_tables = collect_unique_names(groups["transfer_tables"])
-    aplan_if_tables = collect_unique_names(groups["aplan_if_tables"])
-    legacy_tables = collect_unique_names(groups["legacy_tables"])
-    log_tables = collect_unique_names(groups["log_tables"])
-
-    stg_label = stg_tables[0] if stg_tables else "표준화 테이블"
-    if source_system:
-        summary_line = f"{source_system}에서 {flow_key} 데이터를 APlan으로 전송하여 {stg_label}로 표준화합니다."
-    else:
-        summary_line = f"{flow_key} 데이터를 APlan으로 전송하여 {stg_label}로 표준화합니다."
-
-    stages = [
-        {
-            "title": "원천(Source)",
-            "description": f"{source_system or '원천 시스템'}에서 데이터를 생성합니다.",
-            "items": legacy_programs + collect_unique_names(groups["source_tables"]),
-        },
-        {
-            "title": "전송(Transfer)",
-            "description": "중계/전송 구간을 통해 데이터를 전달합니다.",
-            "items": transfer_tables or log_tables,
-        },
-        {
-            "title": "APlan 수신(Landing)",
-            "description": "APlan I/F 테이블로 수신합니다.",
-            "items": aplan_if_tables,
-        },
-        {
-            "title": "표준화(Standardize)",
-            "description": "STG 테이블로 표준화합니다.",
-            "items": stg_tables,
-        },
-    ]
-
-    return {
-        "flow_key": flow_key,
-        "interface_name": flow_key,
-        "program_description": program_description,
-        "summary_line": summary_line,
-        "module": module,
-        "system_type": source_system,
-        "flow_type": parts["flow_type"],
-        "item_id": parts["item_id"],
-        "if_id": parts["if_id"],
-        "stg_tables": stg_tables,
-        "stages": stages,
-        "ops_details": {
-            "execution": {
-                "programs": legacy_programs,
-                "transfer_tables": transfer_tables,
-            },
-            "data_objects": {
-                "legacy_tables": legacy_tables,
-                "aplan_if_tables": aplan_if_tables,
-                "stg_tables": stg_tables,
-            },
-            "logs": {
-                "log_tables": log_tables,
-            },
-        },
-    }
-
-
-def collect_flows(*, session: Session) -> dict[str, list[IntegrationObject]]:
-    objects = session.exec(select(IntegrationObject).where(IntegrationObject.status == "ACTIVE")).all()
-    flows: dict[str, list[IntegrationObject]] = defaultdict(list)
-    for obj in objects:
-        for tag in split_flow_tags(obj.tags):
-            flows[tag].append(obj)
-    return flows
-
-
-def build_flow_index(*, session: Session) -> dict:
-    flows = collect_flows(session=session)
-    primary_flow_key: str | None = None
-    primary_source_row = None
-
-    cards = []
-    for flow_key, objects in flows.items():
-        min_source_row = min(
-            [obj.source_row for obj in objects if obj.source_row is not None],
-            default=None,
+def build_flow_search_query(
+    *,
+    q: Optional[str],
+    flow_type: Optional[str],
+    system: Optional[str],
+    module: Optional[str],
+) -> list:
+    filters = []
+    if q:
+        search = f"%{q}%"
+        filters.append(
+            or_(
+                Flow.item_id.ilike(search),
+                Flow.name.ilike(search),
+                Flow.program_name.ilike(search),
+                Flow.program_desc.ilike(search),
+                Flow.tcode.ilike(search),
+                Flow.if_id.ilike(search),
+                Flow.if_fm.ilike(search),
+                Flow.agg_table.ilike(search),
+                Flow.if_table.ilike(search),
+                Flow.log_table.ilike(search),
+                Flow.aplan_if_table.ilike(search),
+                Flow.aplan_stg_tables_raw.ilike(search),
+            )
         )
-        if min_source_row is not None and (primary_source_row is None or min_source_row < primary_source_row):
-            primary_source_row = min_source_row
-            primary_flow_key = flow_key
+    if flow_type:
+        filters.append(Flow.flow_type == flow_type)
+    if system:
+        filters.append(Flow.system == system)
+    if module:
+        filters.append(Flow.module == module)
+    return filters
 
-        summary = build_flow_summary(flow_key=flow_key, objects=objects)
+
+def list_flows(
+    *,
+    session: Session,
+    q: Optional[str],
+    flow_type: Optional[str],
+    system: Optional[str],
+    module: Optional[str],
+) -> list[Flow]:
+    statement = select(Flow)
+    for condition in build_flow_search_query(q=q, flow_type=flow_type, system=system, module=module):
+        statement = statement.where(condition)
+    statement = statement.order_by(Flow.item_id, Flow.name, Flow.flow_key)
+    return session.exec(statement).all()
+
+
+def get_flow_by_key(*, session: Session, flow_key: str) -> Flow | None:
+    return session.exec(select(Flow).where(Flow.flow_key == flow_key)).first()
+
+
+def build_flow_cards(flows: list[Flow]) -> list[dict]:
+    cards = []
+    for flow in flows:
         cards.append(
             {
-                "flow_key": flow_key,
-                "interface_name": summary["interface_name"],
-                "program_description": summary["program_description"],
-                "system_type": summary["system_type"],
-                "module": summary["module"],
-                "stg_tables": summary["stg_tables"],
-                "min_source_row": min_source_row,
+                "flow_key": flow.flow_key,
+                "display_name": flow_display_name(flow),
+                "program_desc": flow.program_desc,
+                "system": flow.system,
+                "module": flow.module,
+                "flow_type": flow.flow_type,
             }
         )
-
-    def sort_key(card: dict) -> tuple:
-        is_primary = primary_flow_key and card["flow_key"] == primary_flow_key
-        return (0 if is_primary else 1, card["min_source_row"] or 999999, card["flow_key"])
-
-    cards.sort(key=sort_key)
-    return {"cards": cards, "primary_flow_key": primary_flow_key}
+    return cards
 
 
-def filter_flow_cards(*, cards: list[dict], q: str | None, system_type: str | None, module: str | None) -> list[dict]:
-    filtered = cards
-    if q:
-        lowered = q.strip().lower()
-        filtered = [
-            card
-            for card in filtered
-            if lowered in (card["flow_key"] or "").lower()
-            or lowered in (card["interface_name"] or "").lower()
-            or lowered in (card["program_description"] or "").lower()
-            or any(lowered in table.lower() for table in card.get("stg_tables") or [])
-        ]
-    if system_type:
-        filtered = [card for card in filtered if (card.get("system_type") or "").lower() == system_type.lower()]
-    if module:
-        filtered = [card for card in filtered if (card.get("module") or "").lower() == module.lower()]
-    return filtered
+def node_label(*, title: str, detail: str) -> str:
+    detail_text = detail or "-"
+    return f"<b>{title}</b>\\n<small>{detail_text}</small>"
 
 
-def build_flow_graph(*, flow_key: str, objects: list[IntegrationObject]) -> dict:
-    groups = build_flow_groups(objects)
-    source_system = choose_most_common([obj.system_type for obj in objects if obj.layer == "Legacy"])
-    source_label = f"{source_system or 'Source'}"
+def build_panel_data(*, flow: Flow) -> dict:
+    return {
+        "summary": build_flow_summary_line(flow),
+        "execution": {
+            "program": flow.program_name,
+            "tcode": flow.tcode,
+            "if_fm": flow.if_fm,
+        },
+        "data_objects": {
+            "agg_table": flow.agg_table,
+            "if_table": flow.if_table,
+            "log_table": flow.log_table,
+            "aplan_if_table": flow.aplan_if_table,
+            "aplan_stg_tables": parse_stg_tables(flow),
+        },
+        "identifiers": {
+            "flow_key": flow.flow_key,
+            "if_id": flow.if_id,
+        },
+    }
 
-    nodes: list[dict] = []
-    edges: list[dict] = []
 
-    def add_node(node_id: str, label: str, group: str, level: int, shape: str = "box") -> None:
+def build_flow_diagram(*, flow: Flow) -> dict:
+    stg_tables = parse_stg_tables(flow)
+    panel = build_panel_data(flow=flow)
+
+    nodes = []
+    edges = []
+
+    def add_node(node_id: str, label: str, x: int, y: int, kind: str, is_spine: bool) -> None:
         nodes.append(
             {
                 "id": node_id,
                 "label": label,
-                "group": group,
-                "level": level,
-                "shape": shape,
+                "x": x,
+                "y": y,
+                "fixed": {"x": True, "y": True},
+                "shape": "box",
+                "shapeProperties": {"borderRadius": 10},
+                "font": {"multi": "html", "size": 16},
+                "widthConstraint": {"maximum": 240},
+                "heightConstraint": {"minimum": 64},
+                "is_spine": is_spine,
+                "kind": kind,
             }
         )
 
-    def add_edge(from_id: str, to_id: str, dashes: bool = False) -> None:
-        edges.append({"from": from_id, "to": to_id, "arrows": "to", "dashes": dashes})
+    def add_edge(from_id: str, to_id: str, is_spine: bool) -> None:
+        edges.append(
+            {
+                "from": from_id,
+                "to": to_id,
+                "arrows": "to",
+                "width": 4 if is_spine else 1,
+                "dashes": not is_spine,
+            }
+        )
 
-    source_id = f"spine:source:{flow_key}"
-    transfer_id = f"spine:transfer:{flow_key}"
-    aplan_id = f"spine:aplan:{flow_key}"
+    s0_id = "S0_SOURCE"
+    s1_id = "S1_TRANSFER"
+    s2_id = "S2_APLAN_IF"
 
-    add_node(source_id, source_label, "spine", 0, "ellipse")
-    add_node(transfer_id, "Transfer", "spine", 1, "ellipse")
-    add_node(aplan_id, "APlan I/F", "spine", 2, "ellipse")
-    add_edge(source_id, transfer_id)
-    add_edge(transfer_id, aplan_id)
+    add_node(
+        s0_id,
+        node_label(title="원천 실행", detail=flow.system or flow.program_name or "-"),
+        X0,
+        SOURCE_Y,
+        "source",
+        True,
+    )
+    add_node(
+        s1_id,
+        node_label(title="전송 지점", detail=flow.if_fm or flow.if_id or "-"),
+        X1,
+        IF_Y,
+        "transfer",
+        True,
+    )
+    add_node(
+        s2_id,
+        node_label(title="APlan 수신", detail=flow.aplan_if_table or "-"),
+        X2,
+        APLAN_Y,
+        "aplan_if",
+        True,
+    )
 
-    stg_tables = collect_unique_names(groups["stg_tables"])
-    if not stg_tables:
-        stg_tables = ["STG"]
-    for idx, table in enumerate(stg_tables):
-        stg_id = f"spine:stg:{idx}:{flow_key}"
-        add_node(stg_id, table, "spine", 3, "box")
-        add_edge(aplan_id, stg_id)
+    add_edge(s0_id, s1_id, True)
+    add_edge(s1_id, s2_id, True)
 
-    for program in collect_unique_names(groups["legacy_jobs"]):
-        node_id = f"sat:legacy_job:{program}"
-        add_node(node_id, program, "legacy", 0, "box")
-        add_edge(node_id, source_id, dashes=True)
+    if len(stg_tables) >= 3:
+        s3_id = "S3_APLAN_STG_BUNDLE"
+        add_node(
+            s3_id,
+            node_label(title="표준화 결과", detail=f"{len(stg_tables)}개"),
+            X3,
+            APLAN_Y,
+            "stg_bundle",
+            True,
+        )
+        add_edge(s2_id, s3_id, True)
+    else:
+        offsets = [0, 60]
+        for idx, table in enumerate(stg_tables or ["-"]):
+            s3_id = f"S3_APLAN_STG_{idx}"
+            add_node(
+                s3_id,
+                node_label(title="표준화 결과", detail=table),
+                X3,
+                APLAN_Y + offsets[idx] if idx < len(offsets) else APLAN_Y,
+                "stg",
+                True,
+            )
+            add_edge(s2_id, s3_id, True)
 
-    for table in collect_unique_names(groups["legacy_tables"]):
-        node_id = f"sat:legacy_table:{table}"
-        add_node(node_id, table, "legacy", 0, "box")
-        add_edge(node_id, source_id, dashes=True)
+    # Satellites
+    s0_satellites = split_names(flow.agg_table)
+    if s0_satellites:
+        add_node(
+            "SAT_AGG",
+            node_label(title="집계 테이블", detail=", ".join(s0_satellites)),
+            X0,
+            SOURCE_Y - 90,
+            "agg_table",
+            False,
+        )
+        add_edge("SAT_AGG", s0_id, False)
 
-    for table in collect_unique_names(groups["transfer_tables"]):
-        node_id = f"sat:transfer:{table}"
-        add_node(node_id, table, "transfer", 1, "box")
-        add_edge(transfer_id, node_id, dashes=True)
+    s1_satellites = []
+    if flow.log_table:
+        s1_satellites.append(("SAT_LOG", "LOG 테이블", flow.log_table))
+    if flow.if_table:
+        s1_satellites.append(("SAT_IF_TABLE", "I/F 테이블", flow.if_table))
+    if flow.if_id:
+        s1_satellites.append(("SAT_IF_ID", "IF ID", flow.if_id))
 
-    for table in collect_unique_names(groups["aplan_if_tables"]):
-        node_id = f"sat:aplan_if:{table}"
-        add_node(node_id, table, "aplan", 2, "box")
-        add_edge(aplan_id, node_id, dashes=True)
+    y_offsets = [-90, 90, -180, 180]
+    for idx, (node_id, title, detail) in enumerate(s1_satellites):
+        y = IF_Y + y_offsets[idx] if idx < len(y_offsets) else IF_Y + 180
+        add_node(
+            node_id,
+            node_label(title=title, detail=detail),
+            X1,
+            y,
+            "transfer_satellite",
+            False,
+        )
+        add_edge(node_id, s1_id, False)
 
-    return {"nodes": nodes, "edges": edges}
-
-
+    return {"nodes": nodes, "edges": edges, "panel": panel}
